@@ -355,6 +355,107 @@ ul[data-type="taskList"] li > div {
   color: var(--text-muted);
 }
 
+/* Mobile Header Optimization */
+.editor-actions-desktop {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.editor-actions-mobile {
+  display: none;
+  position: relative;
+}
+
+.sync-badge {
+  opacity: 0.8; 
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .editor-actions-desktop {
+    display: none;
+  }
+  
+  .editor-actions-mobile {
+    display: flex;
+    align-items: center;
+  }
+
+  .editor-header div:first-child {
+    width: 65% !important; /* Give more space to title */
+  }
+
+  .sync-badge {
+    display: none; /* Hide sync text on mobile to save space */
+  }
+}
+
+/* More Menu (Mobile Overflow) */
+.more-menu {
+  position: absolute;
+  top: calc(100% + 15px);
+  right: 0;
+  width: 220px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: 0.5rem;
+  z-index: 1000;
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.more-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  transition: all var(--transition-fast);
+  background: none;
+  border: none;
+  width: 100%;
+  cursor: pointer;
+  text-align: left;
+}
+
+.more-menu-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.more-menu-item.delete {
+  color: var(--warning);
+}
+
+/* Tiptap Toolbar Mobile Scroll */
+@media (max-width: 900px) {
+  .tiptap-toolbar {
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: flex;
+    white-space: nowrap;
+    padding: 0.5rem 1rem;
+    scrollbar-width: none; /* Hide scrollbar Firefox */
+    -ms-overflow-style: none; /* Hide scrollbar IE/Edge */
+    gap: 0.5rem;
+  }
+  
+  .tiptap-toolbar::-webkit-scrollbar {
+    display: none; /* Hide scrollbar Chrome/Safari */
+  }
+
+  .toolbar-group {
+    flex-shrink: 0;
+  }
+}
+
+/* Animations */
 @keyframes slideUp {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
@@ -362,4 +463,101 @@ ul[data-type="taskList"] li > div {
 
 .animate-slide-up {
   animation: slideUp 0.2s ease-out forwards;
+}
+/* Pro Editor Floating Menus */
+.bubble-menu {
+  display: flex;
+  background: var(--bg-secondary);
+  padding: 0.35rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border-color);
+  gap: 0.25rem;
+  z-index: 1000;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.bubble-menu button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.bubble-menu button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.bubble-menu button.is-active {
+  color: var(--accent-primary);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.bubble-divider {
+  width: 1px;
+  background: var(--border-color);
+  margin: 0.25rem 0.25rem;
+}
+
+/* Floating Action Menu */
+.floating-menu {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  padding: 0.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border-color);
+  gap: 0.25rem;
+  z-index: 1000;
+  min-width: 180px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.floating-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+
+.floating-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  transform: translateX(4px);
+}
+
+.btn-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  font-weight: 800;
+  font-size: 0.75rem;
+}
+
+.btn-text {
+  font-size: 0.85rem;
+  font-weight: 500;
 }

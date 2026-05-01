@@ -18,7 +18,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       <div className="sidebar-header">
         <div className="brand">
           <FileText size={24} color="var(--accent-primary)" />
-          <span>LiveSync</span>
+          <span>VertexFlow</span>
         </div>
         <button className="mobile-close-btn" onClick={onClose} aria-label="Close Sidebar">
           <X size={24} color="var(--text-primary)" />

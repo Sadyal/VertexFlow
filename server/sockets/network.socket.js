@@ -18,16 +18,17 @@ const broadcastPresence = async (io, userId, isOnline) => {
 /**
  * @handler registerNetworkHandlers
  */
-export const registerNetworkHandlers = (io, socket) => {
+export const registerNetworkHandlers = async (io, socket) => {
   const userId = socket.userId;
 
   // Notify friends that user is online
-  broadcastPresence(io, userId, true);
+  await broadcastPresence(io, userId, true);
 
   // Handle disconnection
-  socket.on('disconnect', () => {
-    broadcastPresence(io, userId, false);
+  socket.on('disconnect', async () => {
+    await broadcastPresence(io, userId, false);
   });
+
 
   /**
    * Send private message

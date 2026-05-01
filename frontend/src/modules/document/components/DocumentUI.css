@@ -242,3 +242,35 @@
   font-size: 0.875rem;
   outline: none;
 }
+
+/* ========================================== 
+ * DASHBOARD SECTIONS 
+ * ========================================== */
+.dashboard-section {
+  margin-top: 3.5rem;
+}
+
+.section-title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-primary);
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.section-icon {
+  color: var(--accent-primary);
+}
+
+.section-count {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 0.15rem 0.6rem;
+  border-radius: 20px;
+}

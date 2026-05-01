@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, FileText, Users } from 'lucide-react';
 import { useDocuments } from '../doc.hooks';
+import { useAuth } from '../../../context/AuthContext';
 import DocList from '../components/DocList';
 import Button from '../../../components/common/Button';
 import Loader from '../../../components/common/Loader';
@@ -13,6 +14,7 @@ const Dashboard = () => {
   // STATE MANAGEMENT & HOOKS
   // ==========================================
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { docs, isLoading, createDoc, fetchDocs, removeDoc, renameDoc, error } = useDocuments();
   const { isOnline } = useNetworkStatus();
   const [isCreating, setIsCreating] = useState(false);
@@ -23,13 +25,21 @@ const Dashboard = () => {
   }, [fetchDocs]);
 
   // ==========================================
+  // FILTERING LOGIC
+  // ==========================================
+  const currentUserId = user?.id || user?._id;
+  
+  const ownedDocs = docs.filter(doc => 
+    doc.owner === currentUserId || doc.owner?._id === currentUserId
+  );
+  
+  const sharedDocs = docs.filter(doc => 
+    doc.owner !== currentUserId && doc.owner?._id !== currentUserId
+  );
+
+  // ==========================================
   // EVENT HANDLERS
   // ==========================================
-  /**
-   * Handles the creation of a new document.
-   * Demonstrates offline-first / mock capability by navigating
-   * even if the backend save fails (handled in useDocuments hook).
-   */
   const handleCreateNew = async () => {
     setIsCreating(true);
     try {
@@ -37,13 +47,11 @@ const Dashboard = () => {
         title: 'Untitled Document', 
         content: '<p></p>' 
       });
-      // Navigate straight to the newly created document
       if (newDoc && newDoc.id) {
         navigate(`/docs/${newDoc.id}`);
       }
     } catch (err) {
       console.error('Failed to create document:', err);
-      alert('Could not create document. Please try again.');
     } finally {
       setIsCreating(false);
     }
@@ -71,19 +79,46 @@ const Dashboard = () => {
         </Button>
       </div>
 
-      {/* Network / API Warnings */}
       {error && isOnline && (
         <div className="error-banner">
           {error}
         </div>
       )}
 
-      {/* Document Grid/List */}
       <div className="dashboard-content">
-        <DocList docs={docs} onDelete={removeDoc} onRename={renameDoc} />
+        {/* SECTION: OWNED DOCUMENTS */}
+        <div className="dashboard-section">
+          <h2 className="section-title">
+            <FileText size={20} className="section-icon" />
+            My Documents
+            <span className="section-count">{ownedDocs.length}</span>
+          </h2>
+          <DocList 
+            docs={ownedDocs} 
+            onDelete={removeDoc} 
+            onRename={renameDoc} 
+          />
+        </div>
+
+        {/* SECTION: SHARED DOCUMENTS */}
+        {(sharedDocs.length > 0 || isLoading) && (
+          <div className="dashboard-section">
+            <h2 className="section-title">
+              <Users size={20} className="section-icon" />
+              Shared with Me
+              <span className="section-count">{sharedDocs.length}</span>
+            </h2>
+            <DocList 
+              docs={sharedDocs} 
+              onDelete={removeDoc} 
+              onRename={renameDoc} 
+            />
+          </div>
+        )}
       </div>
     </div>
   );
 };
+
 
 export default Dashboard;

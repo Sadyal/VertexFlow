@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Search, UserPlus, Check, X, Users, MessageSquare, Clock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, Check, X, Users, MessageSquare, Clock, UserPlus } from 'lucide-react';
 import { networkApi } from '../network.api';
 import { useAuth } from '../../../context/AuthContext';
 import { io } from 'socket.io-client';
 import ChatPanel from '../components/ChatPanel';
-import Button from '../../../components/common/Button';
-import Loader from '../../../components/common/Loader';
 import Skeleton from '../../../components/common/Skeleton';
 import '../NetworkUI.css';
 
@@ -27,31 +25,6 @@ const FriendsSkeleton = React.memo(() => (
   </div>
 ));
 
-const RequestsSkeleton = React.memo(() => (
-  <div className="requests-list">
-    {[1, 2].map(i => (
-      <div key={i} className="request-card" style={{ pointerEvents: 'none' }}>
-        <div className="user-info">
-          <Skeleton width="36px" height="36px" borderRadius="50%" />
-          <div className="details">
-            <Skeleton width="100px" height="1rem" style={{ marginBottom: '0.3rem' }} />
-            <Skeleton width="80px" height="0.7rem" />
-          </div>
-        </div>
-        <div className="request-actions" style={{ marginTop: '0.75rem', gap: '0.5rem' }}>
-          <Skeleton width="100%" height="32px" borderRadius="var(--radius-sm)" />
-          <Skeleton width="100%" height="32px" borderRadius="var(--radius-sm)" />
-        </div>
-      </div>
-    ))}
-  </div>
-));
-
-/**
- * @component Network
- * @description The social hub for managing connections, searching users, and pending requests.
- * Features real-time search and relationship management.
- */
 const Network = () => {
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,17 +35,15 @@ const Network = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [activeChat, setActiveChat] = useState(null);
   const [socket, setSocket] = useState(null);
+  const [showMobileChat, setShowMobileChat] = useState(false);
+  const [activeTab, setActiveTab] = useState('chats'); // 'chats' | 'discover' | 'requests'
 
-  // ==========================================
-  // DATA FETCHING
-  // ==========================================
   const fetchData = async () => {
     try {
       const [requestsRes, friendsRes] = await Promise.all([
         networkApi.getPendingRequests(),
         networkApi.getFriends()
       ]);
-      
       if (requestsRes.success) setPendingRequests(requestsRes.data);
       if (friendsRes.success) setFriends(friendsRes.data);
     } catch (err) {
@@ -81,26 +52,20 @@ const Network = () => {
       setIsLoading(false);
     }
   };
+
   useEffect(() => {
     fetchData();
-
-    // 🔌 Socket initialization (ONCE per session)
     const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
     const s = io(SOCKET_URL, {
       withCredentials: true,
       transports: ['websocket']
     });
     setSocket(s);
+    return () => s.disconnect();
+  }, []);
 
-    return () => {
-      s.disconnect();
-    };
-  }, []); // Run ONLY once on mount
-
-  // Separate Effect for Socket Listeners to avoid stale closures
   useEffect(() => {
     if (!socket) return;
-
     socket.on('presence-update', ({ userId, isOnline }) => {
       setFriends(prev => prev.map(item => 
         item.friend._id.toString() === userId.toString() ? { ...item, isOnline } : item
@@ -111,7 +76,6 @@ const Network = () => {
       const senderId = (message.sender._id || message.sender).toString();
       const recipientId = (message.recipient._id || message.recipient).toString();
       const currentUserId = (user.id || user._id).toString();
-      
       const otherPersonId = senderId === currentUserId ? recipientId : senderId;
 
       setFriends(prev => prev.map(item => {
@@ -137,24 +101,17 @@ const Network = () => {
     };
   }, [socket, activeChat, user]);
 
-  // ==========================================
-  // HANDLERS
-  // ==========================================
   const handleSearch = async (e) => {
     const query = e.target.value;
     setSearchQuery(query);
-    
     if (query.length < 3) {
       setSearchResults([]);
       return;
     }
-
     setIsSearching(true);
     try {
       const response = await networkApi.searchUsers(query);
-      if (response.success) {
-        setSearchResults(response.data);
-      }
+      if (response.success) setSearchResults(response.data);
     } catch (err) {
       console.error("Search failed:", err);
     } finally {
@@ -166,11 +123,9 @@ const Network = () => {
     try {
       const response = await networkApi.sendRequest(recipientId);
       if (response.success) {
-        // Optimistically update the status in the search results
         setSearchResults(prev => prev.map(u => 
           u._id.toString() === recipientId.toString() ? { ...u, connectionStatus: 'pending' } : u
         ));
-        // Show success (could add toast here)
       }
     } catch (err) {
       console.error("Failed to send request:", err);
@@ -178,51 +133,29 @@ const Network = () => {
   };
 
   const acceptRequest = async (connectionId) => {
-    // 🚀 OPTIMISTIC UPDATE
-    const requestToAccept = pendingRequests.find(r => r._id.toString() === connectionId.toString());
+    const requestToAccept = pendingRequests.find(r => r._id === connectionId);
     if (!requestToAccept) return;
-
-    // Remove from pending instantly
-    setPendingRequests(prev => prev.filter(r => r._id.toString() !== connectionId.toString()));
-    
-    // Add to friends list instantly (with placeholder data)
-    const newFriend = {
-      connectionId,
-      friend: requestToAccept.requester,
-      isOnline: false, // Will be updated by socket or next fetch
-      unreadCount: 0,
-      lastMessage: null
-    };
-    setFriends(prev => [newFriend, ...prev]);
-
+    setPendingRequests(prev => prev.filter(r => r._id !== connectionId));
+    setFriends(prev => [{ friend: requestToAccept.requester, isOnline: false, unreadCount: 0, lastMessage: null }, ...prev]);
     try {
-      const response = await networkApi.acceptRequest(connectionId);
-      if (!response.success) {
-        // Rollback on failure
-        fetchData(); 
-      }
+      await networkApi.acceptRequest(connectionId);
     } catch (err) {
-      console.error("Failed to accept request:", err);
-      fetchData(); // Rollback
+      fetchData();
     }
   };
 
   const ignoreRequest = async (connectionId) => {
-    // 🚀 OPTIMISTIC UPDATE
-    setPendingRequests(prev => prev.filter(r => r._id.toString() !== connectionId.toString()));
-
+    setPendingRequests(prev => prev.filter(r => r._id !== connectionId));
     try {
-      // Assuming a delete/ignore endpoint exists or just using same logic
-      await networkApi.acceptRequest(connectionId); // Simplified for demo, replace with actual reject if available
+      await networkApi.acceptRequest(connectionId); 
     } catch (err) {
-      console.error("Failed to ignore request:", err);
-      fetchData(); // Rollback
+      fetchData();
     }
   };
 
   const openChat = (friend) => {
     setActiveChat(friend);
-    // Reset unread count locally when opening chat
+    setShowMobileChat(true);
     setFriends(prev => prev.map(item => 
       item.friend._id.toString() === friend._id.toString() ? { ...item, unreadCount: 0 } : item
     ));
@@ -232,189 +165,198 @@ const Network = () => {
 
   return (
     <div className="network-container animate-fade-in">
-      <div className="network-header">
-        <h1>My Network</h1>
-        <p>Connect with other writers and collaborate in real-time.</p>
-      </div>
+      <div className="messenger-container" style={{ 
+        '--sidebar-display': showMobileChat ? 'none' : 'flex',
+        '--chat-display': showMobileChat ? 'flex' : 'none'
+      }}>
+        {/* SIDEBAR */}
+        <div className="messenger-sidebar">
 
-      <div className="network-grid">
-        {/* Left Column: Search & Discover */}
-        <div className="network-main">
-          <section className="search-section glass-panel">
-            <div className="search-bar-wrapper">
-              <Search size={20} className="search-icon" />
-              <input 
-                type="text" 
-                placeholder="Search by email to find friends..." 
-                value={searchQuery}
-                onChange={handleSearch}
-              />
-              {isSearching && <div className="spinner-small" />}
+          {/* Sidebar Header with Tabs */}
+          <div style={{ padding: '0.75rem 1rem 0 1rem', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+
+            <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', paddingLeft: '0.5rem' }}>Network</h2>
+
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '-1px' }}>
+              <button 
+                onClick={() => setActiveTab('chats')}
+                style={{ 
+                  flex: 1, padding: '0.75rem 0', border: 'none', background: 'transparent', cursor: 'pointer',
+                  color: activeTab === 'chats' ? 'var(--accent-primary)' : 'var(--text-muted)',
+                  borderBottom: `2px solid ${activeTab === 'chats' ? 'var(--accent-primary)' : 'transparent'}`,
+                  fontWeight: activeTab === 'chats' ? '600' : '400', transition: 'all 0.2s'
+                }}
+              >
+                Chats
+              </button>
+              <button 
+                onClick={() => setActiveTab('discover')}
+                style={{ 
+                  flex: 1, padding: '0.75rem 0', border: 'none', background: 'transparent', cursor: 'pointer',
+                  color: activeTab === 'discover' ? 'var(--accent-primary)' : 'var(--text-muted)',
+                  borderBottom: `2px solid ${activeTab === 'discover' ? 'var(--accent-primary)' : 'transparent'}`,
+                  fontWeight: activeTab === 'discover' ? '600' : '400', transition: 'all 0.2s'
+                }}
+              >
+                Discover
+              </button>
+              <button 
+                onClick={() => setActiveTab('requests')}
+                style={{ 
+                  flex: 1, padding: '0.75rem 0', border: 'none', background: 'transparent', cursor: 'pointer',
+                  color: activeTab === 'requests' ? 'var(--accent-primary)' : 'var(--text-muted)',
+                  borderBottom: `2px solid ${activeTab === 'requests' ? 'var(--accent-primary)' : 'transparent'}`,
+                  fontWeight: activeTab === 'requests' ? '600' : '400', transition: 'all 0.2s',
+                  position: 'relative'
+                }}
+              >
+                Requests
+                {pendingRequests.length > 0 && (
+                  <span style={{ 
+                    position: 'absolute', top: '4px', right: '4px', width: '16px', height: '16px', 
+                    background: '#ef4444', color: 'white', borderRadius: '50%', fontSize: '10px', 
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    {pendingRequests.length}
+                  </span>
+                )}
+              </button>
             </div>
+          </div>
 
-            {searchResults.length > 0 && (
-              <div className="search-results-list">
-                {searchResults.map(result => (
-                  <div key={result._id} className="user-connection-card">
-                    <div className="user-info">
-                      {result.avatar ? (
-                        <img src={result.avatar} alt={result.name} className="avatar-img" />
-                      ) : (
-                        <div className="avatar-initials">{getInitials(result.name)}</div>
-                      )}
-                      <div className="details">
-                        <h4>{result.name}</h4>
-                        <p>{result.email}</p>
-                      </div>
-                    </div>
-                    <div className="search-result-actions">
-                      {result.connectionStatus === 'accepted' ? (
-                        <Button variant="secondary" disabled className="status-badge">
-                          <Users size={16} /> Friends
-                        </Button>
-                      ) : result.connectionStatus === 'pending' ? (
-                        <Button variant="secondary" disabled className="status-badge">
-                          <Clock size={16} /> Pending
-                        </Button>
-                      ) : (
-                        <Button 
-                          variant="secondary" 
-                          onClick={() => sendRequest(result._id)}
-                          className="action-btn"
-                        >
-                          <UserPlus size={16} /> Connect
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            {searchQuery.length >= 3 && searchResults.length === 0 && !isSearching && (
-              <div className="no-results">No users found with that email.</div>
-            )}
-          </section>
-
-          <section className="friends-section glass-panel">
-            <div className="section-header">
-              <Users size={20} />
-              <h3>Friends {isLoading ? '' : `(${friends.length})`}</h3>
-            </div>
-            
-            {isLoading ? (
-              <FriendsSkeleton />
-            ) : friends.length === 0 ? (
-              <div className="empty-state-mini">
-                <p>No friends yet. Start by searching for users!</p>
-              </div>
-            ) : (
+          <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
+            {/* CHATS TAB */}
+            {activeTab === 'chats' && (
               <div className="friends-list">
-                {friends.map(item => (
-                  <div 
-                    key={item.friend._id} 
-                    className={`friend-list-item ${activeChat?._id.toString() === item.friend._id.toString() ? 'active' : ''}`}
-                    onClick={() => openChat(item.friend)}
-                  >
-                    <div className="friend-item-main">
-                      <div className="friend-avatar-wrapper small">
-                        {item.friend.avatar ? (
-                          <img src={item.friend.avatar} alt={item.friend.name} className="friend-avatar" />
-                        ) : (
-                          <div className="friend-initials">{getInitials(item.friend.name)}</div>
-                        )}
-                        <div className={`online-indicator ${item.isOnline ? 'active' : 'offline'}`} />
-                      </div>
-                      <div className="friend-item-info">
-                        <h4>{item.friend.name}</h4>
-                        <p className={`last-message-preview ${item.unreadCount > 0 ? 'unread' : ''}`}>
-                          {item.lastMessage 
-                            ? (item.lastMessage.content.length > 30 
-                                ? item.lastMessage.content.substring(0, 30) + '...' 
-                                : item.lastMessage.content)
-                            : item.friend.email
-                          }
-                        </p>
-                      </div>
-                    </div>
-                    <div className="friend-item-status-area">
-                      {item.unreadCount > 0 ? (
-                        <div className="unread-badge animate-pop">{item.unreadCount}</div>
-                      ) : item.lastMessage && (
-                        <span className="last-message-time">
-                          {new Date(item.lastMessage.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      )}
-                      <div className="friend-item-status">
-                        <span className={item.isOnline ? 'status-online' : 'status-offline'}>
-                          {item.isOnline ? 'Online' : 'Offline'}
-                        </span>
-                      </div>
-                    </div>
+                {isLoading ? <FriendsSkeleton /> : friends.length === 0 ? (
+                  <div style={{ textAlign: 'center', marginTop: '3rem', color: 'var(--text-muted)' }}>
+                    <Users size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+                    <p>No contacts yet.</p>
                   </div>
-                ))}
+                ) : (
+                  friends.map(item => (
+                    <div key={item.friend._id} className={`friend-list-item ${activeChat?._id === item.friend._id ? 'active' : ''}`} onClick={() => openChat(item.friend)} style={{ padding: '0.75rem' }}>
+                      <div className="friend-item-main">
+                        <div className="friend-avatar-wrapper small" style={{ width: '40px', height: '40px' }}>
+                          {item.friend.avatar ? <img src={item.friend.avatar} alt={item.friend.name} className="friend-avatar" /> : <div className="friend-initials" style={{ fontSize: '0.8rem' }}>{getInitials(item.friend.name)}</div>}
+                          <div className={`online-indicator ${item.isOnline ? 'active' : 'offline'}`} />
+                        </div>
+                        <div className="friend-item-info">
+                          <h4 style={{ fontSize: '0.9rem' }}>{item.friend.name}</h4>
+                          <p className={`last-message-preview ${item.unreadCount > 0 ? 'unread' : ''}`} style={{ fontSize: '0.75rem' }}>
+                            {item.lastMessage?.content || item.friend.email}
+                          </p>
+                        </div>
+                      </div>
+                      {item.unreadCount > 0 && <div className="unread-badge animate-pop">{item.unreadCount}</div>}
+                    </div>
+                  ))
+                )}
               </div>
             )}
-          </section>
+
+            {/* DISCOVER TAB */}
+            {activeTab === 'discover' && (
+              <div>
+                <div className="search-bar-wrapper" style={{ marginBottom: '1.5rem' }}>
+                  <Search size={18} className="search-icon" />
+                  <input type="text" placeholder="Search by email..." value={searchQuery} onChange={handleSearch} />
+                </div>
+                
+                {isSearching ? <div style={{ textAlign: 'center', padding: '1rem' }}><div className="spinner-small" /></div> : (
+                  <div className="search-results-list">
+                    {searchResults.map(result => (
+                      <div key={result._id} className="user-connection-card" style={{ padding: '0.75rem', marginBottom: '0.5rem' }}>
+                        <div className="user-info" style={{ gap: '0.75rem' }}>
+                          <div className="avatar-initials-sm">{getInitials(result.name)}</div>
+                          <div className="details">
+                            <h4 style={{ fontSize: '0.9rem' }}>{result.name}</h4>
+                            <p style={{ fontSize: '0.7rem' }}>{result.email}</p>
+                          </div>
+                        </div>
+                        <div className="search-result-actions" style={{ marginLeft: 'auto' }}>
+                          {result.connectionStatus === 'accepted' ? (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Friends</span>
+                          ) : result.connectionStatus === 'pending' ? (
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Pending</span>
+                          ) : (
+                            <button className="icon-btn accept" onClick={() => sendRequest(result._id)} style={{ padding: '0.4rem' }}>
+                              <UserPlus size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {searchQuery.length >= 3 && searchResults.length === 0 && (
+                      <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No users found.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* REQUESTS TAB */}
+            {activeTab === 'requests' && (
+              <div className="requests-list">
+                {pendingRequests.length === 0 ? (
+                  <div style={{ textAlign: 'center', marginTop: '3rem', color: 'var(--text-muted)' }}>
+                    <Clock size={40} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+                    <p>No pending requests.</p>
+                  </div>
+                ) : (
+                  pendingRequests.map(req => (
+                    <div key={req._id} className="request-card" style={{ padding: '0.75rem', marginBottom: '0.75rem' }}>
+                      <div className="user-info" style={{ gap: '0.75rem' }}>
+                        <div className="avatar-initials-sm">{getInitials(req.requester.name)}</div>
+                        <div className="details">
+                          <h5 style={{ fontSize: '0.9rem' }}>{req.requester.name}</h5>
+                          <p style={{ fontSize: '0.7rem' }}>Wants to connect</p>
+                        </div>
+                      </div>
+                      <div className="request-actions" style={{ margin: 0, marginLeft: 'auto', gap: '0.5rem' }}>
+                        <button className="icon-btn accept" onClick={() => acceptRequest(req._id)}><Check size={14} /></button>
+                        <button className="icon-btn reject" onClick={() => ignoreRequest(req._id)}><X size={14} /></button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Right Column: Pending Requests & Active Chat */}
-        <div className="network-sidebar">
+        {/* CHAT AREA */}
+        <div className="messenger-chat-area">
           {activeChat ? (
             <ChatPanel 
               friend={activeChat} 
               currentUser={user} 
-              isOnline={friends.find(f => f.friend._id.toString() === activeChat._id.toString())?.isOnline}
+              isOnline={friends.find(f => f.friend._id === activeChat._id)?.isOnline}
               socket={socket}
-              onClose={() => setActiveChat(null)} 
+              onClose={() => { setActiveChat(null); setShowMobileChat(false); }} 
+              isMobile={showMobileChat}
             />
           ) : (
-            <section className="requests-section glass-panel">
-            <div className="section-header">
-              <Clock size={20} />
-              <h3>Pending Requests</h3>
-              {!isLoading && pendingRequests.length > 0 && <span className="count-badge">{pendingRequests.length}</span>}
+            <div className="chat-placeholder">
+              <div style={{ 
+                width: '80px', height: '80px', borderRadius: '50%', 
+                background: 'rgba(255,255,255,0.03)', display: 'flex', 
+                alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)'
+              }}>
+                <MessageSquare size={32} strokeWidth={1} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>Select a Friend</h3>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Pick a contact from the left to start chatting.</p>
+              </div>
             </div>
+          )}
 
-            {isLoading ? (
-              <RequestsSkeleton />
-            ) : pendingRequests.length === 0 ? (
-              <div className="empty-state-mini">
-                <p>No pending requests.</p>
-              </div>
-            ) : (
-              <div className="requests-list">
-                {pendingRequests.map(req => (
-                  <div key={req._id} className="request-card">
-                    <div className="user-info">
-                      {req.requester.avatar ? (
-                        <img src={req.requester.avatar} alt={req.requester.name} className="avatar-img-sm" />
-                      ) : (
-                        <div className="avatar-initials-sm">{getInitials(req.requester.name)}</div>
-                      )}
-                      <div className="details">
-                        <h5>{req.requester.name}</h5>
-                        <p>wants to connect</p>
-                      </div>
-                    </div>
-                    <div className="request-actions">
-                      <button className="icon-btn accept" onClick={() => acceptRequest(req._id)} title="Accept">
-                        <Check size={18} />
-                      </button>
-                      <button className="icon-btn reject" onClick={() => ignoreRequest(req._id)} title="Ignore">
-                        <X size={18} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
         </div>
       </div>
     </div>
   );
 };
+
 
 export default Network;

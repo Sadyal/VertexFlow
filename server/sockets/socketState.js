@@ -1,42 +1,78 @@
-const userSockets = new Map();
+import redis from "../config/redis.js";
 
-export const registerUserSocket = (userId, socketId) => {
-  const uid = userId.toString();
-  if (!userSockets.has(uid)) {
-    userSockets.set(uid, new Set());
+
+const REDIS_KEY_ONLINE_USERS = "online_users";
+const REDIS_KEY_USER_COUNTS = "user_socket_counts";
+
+/**
+ * Register a user's socket. 
+ */
+export const registerUserSocket = async (socket, userId) => {
+  try {
+    const uid = userId.toString();
+    socket.join(`user:${uid}`);
+
+    if (redis) {
+      await redis.hincrby(REDIS_KEY_USER_COUNTS, uid, 1);
+      await redis.sadd(REDIS_KEY_ONLINE_USERS, uid);
+    }
+  } catch (error) {
+    console.error("❌ registerUserSocket Redis error:", error.message);
   }
-  userSockets.get(uid).add(socketId);
 };
 
-export const removeUserSocket = (userId, socketId) => {
-  const uid = userId.toString();
-  const set = userSockets.get(uid);
-  if (!set) return;
-
-  set.delete(socketId);
-  if (set.size === 0) userSockets.delete(uid);
+export const removeUserSocket = async (io, userId) => {
+  try {
+    const uid = userId.toString();
+    
+    if (redis) {
+      const newCount = await redis.hincrby(REDIS_KEY_USER_COUNTS, uid, -1);
+      
+      if (newCount <= 0) {
+        await redis.srem(REDIS_KEY_ONLINE_USERS, uid);
+        await redis.hdel(REDIS_KEY_USER_COUNTS, uid);
+      }
+    }
+  } catch (error) {
+    console.error("❌ removeUserSocket Redis error:", error.message);
+  }
 };
 
+
+/**
+ * Emit to all devices of a user
+ */
 export const emitToUser = (io, userId, event, payload) => {
-  const sockets = userSockets.get(userId.toString());
-  if (!sockets) return;
-
-  sockets.forEach((sid) => {
-    io.to(sid).emit(event, payload);
-  });
+  try {
+    io.to(`user:${userId.toString()}`).emit(event, payload);
+  } catch (error) {
+    console.error("❌ emitToUser error:", error.message);
+  }
 };
 
 /**
- * Check if a user has any active socket connections
+ * Check if a user is online across the entire cluster
  */
-export const isUserOnline = (userId) => {
-  const sockets = userSockets.get(userId.toString());
-  return !!(sockets && sockets.size > 0);
+export const isUserOnline = async (userId) => {
+  try {
+    if (!redis) return false;
+    const isOnline = await redis.sismember(REDIS_KEY_ONLINE_USERS, userId.toString());
+    return isOnline === 1;
+  } catch (error) {
+    console.error("❌ isUserOnline Redis error:", error.message);
+    return false;
+  }
 };
 
 /**
- * Get a list of all currently connected user IDs
+ * Get all online user IDs across the cluster
  */
-export const getAllOnlineUsers = () => {
-  return Array.from(userSockets.keys());
+export const getAllOnlineUsers = async () => {
+  try {
+    if (!redis) return [];
+    return await redis.smembers(REDIS_KEY_ONLINE_USERS);
+  } catch (error) {
+    console.error("❌ getAllOnlineUsers Redis error:", error.message);
+    return [];
+  }
 };

@@ -2,8 +2,10 @@ import http from "http";
 import "dotenv/config";
 
 import app from "./app.js";
-import connectDB from "./config/db.js";
+import connectDB, { disconnectDB } from "./config/db.js";
+import redis from "./config/redis.js";
 import setupSocket from "./sockets/index.js";
+
 
 const PORT = process.env.PORT || 4000;
 
@@ -25,13 +27,27 @@ const startServer = async () => {
     /**
      * GRACEFUL SHUTDOWN
      */
-    const shutdown = (signal) => {
+    const shutdown = async (signal) => {
       console.log(`\n⚠️ ${signal} received. Shutting down...`);
 
-      server.close(() => {
+      server.close(async () => {
         console.log("💤 Server closed");
+        
+        await disconnectDB();
+        
+        if (redis) {
+          await redis.quit();
+          console.log("💤 Redis connection closed");
+        }
+
         process.exit(0);
       });
+
+      // Force exit after 5s if server doesn't close
+      setTimeout(() => {
+        console.error("⛔ Forced shutdown after timeout");
+        process.exit(1);
+      }, 5000);
     };
 
     process.on("SIGINT", shutdown);

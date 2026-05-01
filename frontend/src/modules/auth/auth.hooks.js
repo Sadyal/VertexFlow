@@ -5,7 +5,7 @@ import { authApi } from './auth.api';
 export const useLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const { fetchUser } = useContext(AuthContext);
+  const { setUser } = useContext(AuthContext);
 
   const login = async (credentials) => {
     setIsLoading(true);
@@ -13,7 +13,10 @@ export const useLogin = () => {
     try {
       const response = await authApi.login(credentials);
       if (response.success) {
-        await fetchUser(); // Updates the global context
+        // 🚀 LATENCY FIX: Use user data from login response immediately
+        // This saves 1 network round-trip to /api/auth/me
+        const userData = response.data.user || response.data;
+        setUser(userData);
         return true;
       }
     } catch (err) {
@@ -26,6 +29,7 @@ export const useLogin = () => {
 
   return { login, isLoading, error };
 };
+
 
 export const useRegister = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -75,7 +79,7 @@ export const useLogout = () => {
 export const useVerifyEmail = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const { fetchUser } = useContext(AuthContext);
+  const { setUser } = useContext(AuthContext);
 
   const verify = async (data) => {
     setIsLoading(true);
@@ -83,7 +87,11 @@ export const useVerifyEmail = () => {
     try {
       const response = await authApi.verifyEmail(data);
       if (response.success) {
-        await fetchUser();
+        // 🚀 LATENCY FIX: Use user data from response immediately
+        const userData = response.data.user || response.data;
+        if (userData && typeof userData === 'object') {
+          setUser(userData);
+        }
         return true;
       }
     } catch (err) {
@@ -96,6 +104,7 @@ export const useVerifyEmail = () => {
 
   return { verify, isLoading, error };
 };
+
 
 export const useSendVerifyOtp = () => {
   const [isLoading, setIsLoading] = useState(false);

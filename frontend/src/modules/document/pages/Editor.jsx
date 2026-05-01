@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Share2, Save, ChevronLeft, Trash2 } from 'lucide-react';
+import { 
+  Share2, Save, ChevronLeft, Trash2, MoreVertical, Download 
+} from 'lucide-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Underline } from '@tiptap/extension-underline';
@@ -28,8 +30,8 @@ import DeleteModal from '../components/DeleteModal';
 import EditorToolbar from '../components/EditorToolbar';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 import html2pdf from 'html2pdf.js';
-import { Download } from 'lucide-react';
 import './EditorUI.css';
+
 
 // Socket server URL
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -56,6 +58,7 @@ const Editor = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [activeUsers, setActiveUsers] = useState([]);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [socket, setSocket] = useState(null);
 
 
@@ -129,6 +132,7 @@ const Editor = () => {
       const html = editor.getHTML();
       setIsSyncing(true);
       
+      // Update local state and draft
       setDoc(prev => {
         if (!prev) return prev;
         const updated = { ...prev, content: html };
@@ -136,22 +140,27 @@ const Editor = () => {
         return updated;
       });
 
-      // Clear existing timeout
+      // 1. 🚀 INSTANT BROADCAST (Collaboration)
+
+      // We send this immediately so other users see changes in real-time
+      if (socket) {
+        socket.emit('send-changes', html);
+      }
+
+      // 2. 📝 DEBOUNCED SAVE (Database Persistence)
+      // We wait 2 seconds before hitting the database to save resources
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
       }
 
-      // 📡 Debounced Sync
       saveTimeoutRef.current = setTimeout(() => {
         if (socket) {
-          // Broadcast to other users (immediate is better for collaboration)
-          socket.emit('send-changes', html);
-          // Persist to database (debounced to save DB cycles)
           socket.emit('save-document', html);
         }
         setIsSyncing(false);
-      }, 500); // 500ms pause before saving
+      }, 2000); 
     },
+
     editorProps: {
       attributes: {
         class: 'tiptap-editor-content',
@@ -353,53 +362,80 @@ const Editor = () => {
           {!isOnline && <span className="save-status" style={{color: 'var(--warning)'}}>Offline Mode</span>}
           {error && <span className="save-status" style={{color: 'var(--warning)'}}>{error}</span>}
           
-          <span className="save-status" style={{ opacity: 0.8, fontSize: '0.85rem', color: isSyncing ? 'var(--accent-primary)' : 'inherit' }}>
+          <span className="save-status sync-badge">
             {isSaving ? 'Syncing...' : isSyncing ? 'Syncing...' : 'Synced'}
           </span>
           
-          {/* Download Dropdown */}
-          <div className="download-dropdown-container">
+          {/* Desktop Actions */}
+          <div className="editor-actions-desktop">
+            {/* Download Dropdown */}
+            <div className="download-dropdown-container">
+              <Button 
+                variant="secondary" 
+                onClick={() => setIsDownloadOpen(!isDownloadOpen)}
+                style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}
+              >
+                <Download size={16} /> Download
+              </Button>
+              
+              {isDownloadOpen && (
+                <div className="download-menu glass-panel animate-slide-up">
+                  <button className="download-menu-item" onClick={() => { exportPDF(); setIsDownloadOpen(false); }}>
+                    <span className="format-icon pdf">PDF</span>
+                    <div className="format-info">
+                      <span>Portable Document</span>
+                      <small>Best for sharing & printing</small>
+                    </div>
+                  </button>
+                  <button className="download-menu-item" onClick={() => { exportDOCX(); setIsDownloadOpen(false); }}>
+                    <span className="format-icon docx">DOC</span>
+                    <div className="format-info">
+                      <span>Word Document</span>
+                      <small>Editable in MS Word</small>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <Button variant="secondary" onClick={() => setIsShareModalOpen(true)} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <Share2 size={16} /> Share
+            </Button>
             <Button 
               variant="secondary" 
-              onClick={() => setIsDownloadOpen(!isDownloadOpen)}
-              style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}
+              onClick={() => setIsDeleteModalOpen(true)} 
+              style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--warning)' }}
             >
-              <Download size={16} /> Download
+              <Trash2 size={16} /> Delete
             </Button>
+            <Button onClick={handleSave} isLoading={isSaving} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <Save size={16} /> Save
+            </Button>
+          </div>
+
+          {/* Mobile Actions (More Menu) */}
+          <div className="editor-actions-mobile">
+            <button className="icon-btn" onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}>
+              <MoreVertical size={20} />
+            </button>
             
-            {isDownloadOpen && (
-              <div className="download-menu glass-panel animate-slide-up">
-                <button className="download-menu-item" onClick={() => { exportPDF(); setIsDownloadOpen(false); }}>
-                  <span className="format-icon pdf">PDF</span>
-                  <div className="format-info">
-                    <span>Portable Document</span>
-                    <small>Best for sharing & printing</small>
-                  </div>
+            {isMoreMenuOpen && (
+              <div className="more-menu glass-panel animate-slide-up">
+                <button className="more-menu-item" onClick={() => { handleSave(); setIsMoreMenuOpen(false); }}>
+                  <Save size={16} /> Save Document
                 </button>
-                <button className="download-menu-item" onClick={() => { exportDOCX(); setIsDownloadOpen(false); }}>
-                  <span className="format-icon docx">DOC</span>
-                  <div className="format-info">
-                    <span>Word Document</span>
-                    <small>Editable in MS Word</small>
-                  </div>
+                <button className="more-menu-item" onClick={() => { setIsShareModalOpen(true); setIsMoreMenuOpen(false); }}>
+                  <Share2 size={16} /> Share Document
+                </button>
+                <button className="more-menu-item" onClick={() => { setIsDownloadOpen(true); setIsMoreMenuOpen(false); }}>
+                  <Download size={16} /> Export / Download
+                </button>
+                <button className="more-menu-item delete" onClick={() => { setIsDeleteModalOpen(true); setIsMoreMenuOpen(false); }}>
+                  <Trash2 size={16} /> Delete Document
                 </button>
               </div>
             )}
           </div>
-
-          <Button variant="secondary" onClick={() => setIsShareModalOpen(true)} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <Share2 size={16} /> Share
-          </Button>
-          <Button 
-            variant="secondary" 
-            onClick={() => setIsDeleteModalOpen(true)} 
-            style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--warning)' }}
-          >
-            <Trash2 size={16} /> Delete
-          </Button>
-          <Button onClick={handleSave} isLoading={isSaving} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <Save size={16} /> Save
-          </Button>
         </div>
       </div>
 

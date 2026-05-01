@@ -1,4 +1,6 @@
 import { Server } from "socket.io";
+import { createAdapter } from "@socket.io/redis-adapter";
+import redis, { getRedisDuplicate } from "../config/redis.js";
 import { socketAuth } from "./socketAuth.js";
 import { registerDocHandlers } from "./doc.socket.js";
 import { registerNetworkHandlers } from "./network.socket.js";
@@ -12,25 +14,40 @@ export default function setupSocket(server) {
     },
   });
 
+  // Setup Redis Adapter for Load Balancing
+  if (redis) {
+    const subClient = getRedisDuplicate();
+    io.adapter(createAdapter(redis, subClient));
+    console.log("⚡ Redis Socket Adapter enabled");
+  }
+
+
+
   io.use(socketAuth);
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
     const userId = socket.userId;
-
     console.log("🔌 Connected:", socket.id, "| User:", userId);
 
-    // Register user (multi-device support)
-    registerUserSocket(userId, socket.id);
-
-    // Attach feature handlers
+    // 🚀 FIX: Register handlers IMMEDIATELY so we don't miss any events 
+    // from the client during the async Redis registration.
     registerDocHandlers(io, socket);
-    registerNetworkHandlers(io, socket);
+    const networkPromise = registerNetworkHandlers(io, socket);
 
-    socket.on("disconnect", () => {
+    // Register user in Redis (multi-device support)
+    await registerUserSocket(socket, userId);
+    
+    // Ensure network handlers are fully ready
+    await networkPromise;
+
+    socket.on("disconnect", async () => {
       console.log("⛔ Disconnected:", socket.id);
-      removeUserSocket(userId, socket.id);
+      await removeUserSocket(io, userId);
     });
   });
+
+
+
 
   return io;
 }

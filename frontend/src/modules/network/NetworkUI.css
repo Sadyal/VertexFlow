@@ -1,55 +1,66 @@
 .network-container {
-  padding: 2rem;
-  max-width: 1200px;
-  margin: 0 auto;
-  min-height: 100vh;
+  /* TRUE FULL-SCREEN: Fills the entire parent content area exactly */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+  /* Clean margin from app edges */
+  background: var(--bg-primary);
 }
 
 .network-header {
-  margin-bottom: 2.5rem;
+  display: none;
+  /* Hide redundant header for the pro messenger look */
 }
 
-.network-header h1 {
-  font-size: 2.5rem;
-  font-weight: 800;
-  margin-bottom: 0.5rem;
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-primary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+.messenger-container {
+  flex: 1;
+  display: flex;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-xl);
+  min-height: 0;
 }
 
-.network-header p {
-  color: var(--text-secondary);
-  font-size: 1.1rem;
-}
 
-.network-grid {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 2rem;
-}
 
-@media (max-width: 1024px) {
-  .network-grid {
-    grid-template-columns: 1fr;
-  }
-}
 
-.network-main {
+.messenger-sidebar {
+  width: 350px;
+  background: rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  border-right: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
-/* Glass Panels */
-.glass-panel {
-  background: var(--bg-secondary);
-  backdrop-filter: blur(12px);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-md);
+.messenger-chat-area {
+  flex: 1;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
 }
+
+.chat-placeholder {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--bg-primary);
+}
+
+
 
 /* Search Section */
 .search-bar-wrapper {
@@ -280,8 +291,13 @@
 }
 
 @keyframes pop {
-  0% { transform: scale(0); }
-  100% { transform: scale(1); }
+  0% {
+    transform: scale(0);
+  }
+
+  100% {
+    transform: scale(1);
+  }
 }
 
 .friend-card {
@@ -373,7 +389,8 @@
   border: 1px solid var(--border-color);
 }
 
-.avatar-img-sm, .avatar-initials-sm {
+.avatar-img-sm,
+.avatar-initials-sm {
   width: 36px;
   height: 36px;
   border-radius: 50%;
@@ -448,7 +465,9 @@
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Chat Panel */
@@ -622,9 +641,10 @@
     grid-template-columns: 1fr;
     gap: 2rem;
   }
-  
+
   .network-sidebar {
-    order: -1; /* Move requests/chat to top on tablets if needed, or keep at bottom */
+    order: -1;
+    /* Move requests/chat to top on tablets if needed, or keep at bottom */
   }
 }
 
@@ -687,5 +707,51 @@
 
   .friend-card p {
     font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .network-container {
+    position: fixed;
+    /* Lock to viewport on mobile to prevent scrolling */
+    top: 64px;
+    /* Height of your mobile header */
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(100vh - 64px);
+    padding: 0;
+    margin: 0;
+    z-index: 5;
+  }
+
+  .messenger-container {
+    border-radius: 0;
+    border: none;
+    height: 100%;
+    width: 100%;
+  }
+
+  .messenger-sidebar {
+    width: 100% !important;
+    display: var(--sidebar-display, flex) !important;
+    height: 100%;
+  }
+
+  .messenger-chat-area {
+    width: 100vw !important;
+    display: var(--chat-display, none) !important;
+    height: calc(100vh - 64px) !important;
+    /* Exactly from header to bottom */
+    position: fixed !important;
+    top: 64px !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 1000 !important;
+    /* Sit above everything else */
+    background: var(--bg-primary) !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 }

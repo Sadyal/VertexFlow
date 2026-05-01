@@ -206,17 +206,22 @@ export const getFriendsService = async (userId) => {
     { $sort: { 'lastMessage.createdAt': -1 } }
   ]);
 
-  // Combine with real-time presence (memory-based)
-  return friendsData.map(item => ({
-    ...item,
-    isOnline: isUserOnline(item.friend._id.toString()),
-    lastMessage: item.lastMessage ? {
-      content: item.lastMessage.content,
-      createdAt: item.lastMessage.createdAt,
-      sender: item.lastMessage.sender
-    } : null
-  }));
+  // Combine with real-time presence (Redis-based)
+  return await Promise.all(
+    friendsData.map(async (item) => ({
+      ...item,
+      isOnline: await isUserOnline(item.friend._id.toString()),
+      lastMessage: item.lastMessage
+        ? {
+            content: item.lastMessage.content,
+            createdAt: item.lastMessage.createdAt,
+            sender: item.lastMessage.sender,
+          }
+        : null,
+    }))
+  );
 };
+
 
 /**
  * Get IDs of all accepted friends for a user.
