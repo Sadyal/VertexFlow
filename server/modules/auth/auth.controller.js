@@ -110,9 +110,10 @@ export const refreshToken = async (req, res, next) => {
       throw error;
     }
 
-    const { accessToken } = await refreshAccessTokenService(token);
+    const { accessToken, refreshToken: newRefreshToken } = await refreshAccessTokenService(token);
 
     res.cookie("accessToken", accessToken, accessTokenOptions);
+    res.cookie("refreshToken", newRefreshToken, refreshTokenOptions);
 
     return successResponse(res, {}, "Token refreshed");
   } catch (err) {

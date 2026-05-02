@@ -84,6 +84,15 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     checkSession();
+
+    // 🎧 Listen for global unauthorized events (from axios interceptor)
+    const handleUnauthorized = () => {
+      console.warn('📡 Unauthorized access detected. Clearing session.');
+      handleSetUser(null);
+    };
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
   const updateAvatar = (newAvatar) => {

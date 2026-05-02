@@ -151,8 +151,16 @@ const user = await userModel
   }
 
   const newAccessToken = generateAccessToken(user._id);
+  const newRefreshToken = generateRefreshToken(user._id);
 
-  return { accessToken: newAccessToken };
+  // 🔄 ROTATE REFRESH TOKEN (Security + Longevity)
+  user.refreshToken = newRefreshToken;
+  await user.save();
+
+  return { 
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken 
+  };
 };
 
 /**

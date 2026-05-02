@@ -55,21 +55,19 @@ api.interceptors.response.use(
           { withCredentials: true }
         );
         
+        isRefreshing = false;
         processQueue(null);
         return api(originalRequest);
       } catch (refreshError) {
+        isRefreshing = false;
         processQueue(refreshError, null);
         
-        // Refresh token failed (e.g. expired). Must login again.
-        // Dispatching a custom event to let the app know to redirect to login
+        // 🚨 CRITICAL: Clear local storage and dispatch event to force login
+        localStorage.removeItem('user');
+        localStorage.removeItem('user_avatar');
         window.dispatchEvent(new Event('auth:unauthorized'));
         
-        if (refreshError.response && refreshError.response.data) {
-          return Promise.reject(refreshError.response.data);
-        }
         return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
       }
     }
 
