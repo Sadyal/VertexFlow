@@ -1,185 +1,79 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  Share2, Save, ChevronLeft, Trash2, MoreVertical, Download 
+  Share2, Save, ChevronLeft, Trash2, Download, MoreVertical 
 } from 'lucide-react';
-import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import { Underline } from '@tiptap/extension-underline';
-import { TextAlign } from '@tiptap/extension-text-align';
-import { Highlight } from '@tiptap/extension-highlight';
-import { Color } from '@tiptap/extension-color';
-import { TextStyle } from '@tiptap/extension-text-style';
-import { Link as LinkExtension } from '@tiptap/extension-link';
-import { TaskItem } from '@tiptap/extension-task-item';
-import { TaskList } from '@tiptap/extension-task-list';
-import { Table } from '@tiptap/extension-table';
-import { TableRow } from '@tiptap/extension-table-row';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
-import { Superscript } from '@tiptap/extension-superscript';
-import { Subscript } from '@tiptap/extension-subscript';
-import { FontFamily } from '@tiptap/extension-font-family';
-import { Image } from '@tiptap/extension-image';
 import { io } from 'socket.io-client';
+
+// Lexical Core
+import { LexicalComposer } from '@lexical/react/LexicalComposer';
+import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
+import { ContentEditable } from '@lexical/react/LexicalContentEditable';
+import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
+import { ListPlugin } from '@lexical/react/LexicalListPlugin';
+import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
+import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
+import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
+
+// Lexical Nodes
+import { HeadingNode, QuoteNode } from '@lexical/rich-text';
+import { TableNode, TableCellNode, TableRowNode } from '@lexical/table';
+import { ListItemNode, ListNode } from '@lexical/list';
+import { CodeNode, CodeHighlightNode } from '@lexical/code';
+import { AutoLinkNode, LinkNode } from '@lexical/link';
+
+// Custom Lexical Components
+import LexicalTheme from './LexicalTheme';
+import LexicalToolbar from './LexicalToolbar';
+import SocketSyncPlugin from './SocketSyncPlugin';
+
+// VertexFlow Components & Utils
 import { documentApi } from '../doc.api';
 import Button from '../../../components/common/Button';
 import Loader from '../../../components/common/Loader';
 import ShareModal from '../components/ShareModal';
 import DeleteModal from '../components/DeleteModal';
-import EditorToolbar from '../components/EditorToolbar';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 import html2pdf from 'html2pdf.js';
 import './EditorUI.css';
 
-
-// Socket server URL
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 /**
- * @component Editor
- * @description Advanced Rich Text Editor powering the core application.
- * Utilizes Tiptap with 20+ extensions for a true MS Word/Google Docs experience.
+ * @component Editor (Lexical Edition)
+ * @description Advanced Rich Text Editor powered by Meta's Lexical Engine.
+ * Seamlessly integrates with the existing Socket.io backend logic.
  */
 const Editor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isOnline } = useNetworkStatus();
   
-  // ==========================================
-  // STATE MANAGEMENT
-  // ==========================================
   const [doc, setDoc] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [socket, setSocket] = useState(null);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [activeUsers, setActiveUsers] = useState([]);
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  const [socket, setSocket] = useState(null);
+  const [documentContent, setDocumentContent] = useState(null); // 🚀 The "Holding Area"
 
+  // 1. Lexical Configuration
+  const initialConfig = useMemo(() => ({
+    namespace: 'VertexFlowEditor',
+    theme: LexicalTheme,
+    onError: (error) => console.error('Lexical Error:', error),
+    nodes: [
+      HeadingNode, ListNode, ListItemNode, QuoteNode, CodeNode,
+      CodeHighlightNode, TableNode, TableCellNode, TableRowNode,
+      AutoLinkNode, LinkNode
+    ]
+  }), []);
 
-
-  // ==========================================
-  // TIPTAP EDITOR INITIALIZATION
-  // ==========================================
-  const extensions = useMemo(() => [
-    StarterKit.configure({
-      // Explicitly disable any potential overlaps to stop console warnings
-      dropCursor: false,
-      history: true,
-      // Some versions of StarterKit might try to include these
-      link: false,
-      underline: false,
-    }),
-    Underline.configure(),
-    Highlight.configure({ multicolor: true }),
-    TextStyle.configure(),
-    Color.configure(),
-    FontFamily.configure(),
-    Superscript.configure(),
-    Subscript.configure(),
-    Image.extend({
-      addAttributes() {
-        return {
-          ...this.parent?.(),
-          width: {
-            default: '100%',
-            renderHTML: attributes => ({
-              width: attributes.width,
-              style: `width: ${attributes.width}; max-width: 100%; height: auto;`,
-            }),
-          },
-        };
-      },
-    }).configure({
-      inline: true,
-      allowBase64: true,
-      HTMLAttributes: {
-        class: 'resizable-image',
-      },
-    }),
-    LinkExtension.configure({
-      openOnClick: false,
-      autolink: true,
-      defaultProtocol: 'https',
-    }),
-    TaskList.configure(),
-    TaskItem.configure({
-      nested: true,
-    }),
-    Table.configure({
-      resizable: true,
-    }),
-    TableRow.configure(),
-    TableHeader.configure(),
-    TableCell.configure(),
-    TextAlign.configure({
-      types: ['heading', 'paragraph'],
-    }),
-  ], []);
-
-  // Debounce ref to store the timer
-  const saveTimeoutRef = useRef(null);
-
-  const editor = useEditor({
-    extensions,
-    content: '',
-    onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
-      setIsSyncing(true);
-      
-      // Update local state and draft
-      setDoc(prev => {
-        if (!prev) return prev;
-        const updated = { ...prev, content: html };
-        localStorage.setItem(`doc_draft_${id}`, JSON.stringify(updated));
-        return updated;
-      });
-
-      // 1. 🚀 INSTANT BROADCAST (Collaboration)
-
-      // We send this immediately so other users see changes in real-time
-      if (socket) {
-        socket.emit('send-changes', html);
-      }
-
-      // 2. 📝 DEBOUNCED SAVE (Database Persistence)
-      // We wait 2 seconds before hitting the database to save resources
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-
-      saveTimeoutRef.current = setTimeout(() => {
-        if (socket) {
-          socket.emit('save-document', html);
-        }
-        setIsSyncing(false);
-      }, 2000); 
-    },
-
-    editorProps: {
-      attributes: {
-        class: 'tiptap-editor-content',
-      },
-    },
-  });
-
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  // ==========================================
-  // SOCKET CONNECTION & SYNC LOGIC
-  // ==========================================
+  // 2. Socket Connection
   useEffect(() => {
     const s = io(SOCKET_URL, {
       withCredentials: true,
@@ -187,96 +81,58 @@ const Editor = () => {
     });
     setSocket(s);
 
-    return () => {
-      s.disconnect();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (socket == null || editor == null || !id) return;
-
-    socket.emit('get-document', id);
-
-    socket.on('load-document', (content) => {
-      // Prioritize local draft if it exists, otherwise load from server
-      const localDraft = localStorage.getItem(`doc_draft_${id}`);
-      if (localDraft) {
-        const parsed = JSON.parse(localDraft);
-        editor.commands.setContent(parsed.content || '');
-      } else {
-        editor.commands.setContent(content || '');
-      }
+    s.emit('get-document', id);
+    
+    s.on('load-document', (content) => {
+      // 🚀 Senior Fix: Store in holding area and stop loading
+      setDocumentContent(content);
       setIsLoading(false);
     });
 
-    socket.on('receive-changes', (content) => {
-      // Update editor content from another user
-      if (!editor.isFocused) {
-        editor.commands.setContent(content, false);
-      }
-    });
+    return () => s.disconnect();
+  }, [id]);
 
-    return () => {
-      socket.off('load-document');
-      socket.off('receive-changes');
-    };
-  }, [socket, editor, id]);
-
-  // ==========================================
-  // DOCUMENT FETCHING & SYNC LOGIC
-  // ==========================================
   const fetchDoc = useCallback(async () => {
     try {
       const response = await documentApi.getDocById(id);
-      if (response.success) {
-        setDoc(response.data);
-      }
+      if (response.success) setDoc(response.data);
     } catch (err) {
-      setError(err.message || 'Failed to fetch document.');
+      setError('Failed to fetch document metadata.');
     }
   }, [id]);
 
-  useEffect(() => {
-    fetchDoc();
-  }, [fetchDoc]);
-
-  const handleTitleChange = (e) => {
-    setDoc(prev => ({ ...prev, title: e.target.value }));
-  };
+  useEffect(() => { fetchDoc(); }, [fetchDoc]);
 
   const handleSave = async () => {
     setIsSaving(true);
     
-    // Always save content locally since the backend only updates the title
-    if (doc) {
-      localStorage.setItem(`doc_draft_${id}`, JSON.stringify(doc));
+    // 🚀 NEW: Extract content from Lexical directly before saving
+    let htmlContent = '';
+    const editorElement = document.querySelector('.lexical-input');
+    if (editorElement) {
+      htmlContent = editorElement.innerHTML;
     }
 
     try {
-      if (isOnline) {
-        await documentApi.updateDoc(id, { title: doc?.title, content: doc?.content });
-      } else {
-        setError('Cannot save title while offline (content saved locally).');
-      }
+      await documentApi.updateDoc(id, { 
+        title: doc?.title,
+        content: htmlContent 
+      });
+      setError(null);
     } catch (err) {
-      setError(err.message || 'Failed to save document.');
+      setError('Failed to save document.');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const getInitials = (name) => name ? name.charAt(0).toUpperCase() : '?';
-
   // ==========================================
-  // EXPORT LOGIC
+  // EXPORT LOGIC (RESTORED)
   // ==========================================
   const exportPDF = () => {
-    if (!editor) return;
-    const content = editor.getHTML();
-    const element = document.createElement('div');
-    element.innerHTML = content;
-    element.className = 'tiptap-editor-content'; // Apply same styles
-    
+    const editorElement = document.querySelector('.lexical-input');
+    if (!editorElement) return;
+
     const opt = {
       margin: [15, 15],
       filename: `${doc?.title || 'Document'}.pdf`,
@@ -285,37 +141,22 @@ const Editor = () => {
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    html2pdf().set(opt).from(element).save();
+    html2pdf().set(opt).from(editorElement).save();
   };
 
   const exportDOCX = () => {
-    if (!editor) return;
-    const content = editor.getHTML();
+    const editorElement = document.querySelector('.lexical-input');
+    if (!editorElement) return;
     
-    // Professional Word XML Wrapper
+    const content = editorElement.innerHTML;
     const header = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' 
-            xmlns:w='urn:schemas-microsoft-com:office:word' 
-            xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <meta charset='utf-8'>
-        <title>${doc?.title || 'Document'}</title>
-        <style>
-          body { font-family: 'Arial', sans-serif; }
-          table { border-collapse: collapse; width: 100%; }
-          td, th { border: 1px solid #000; padding: 5px; }
-        </style>
-      </head>
-      <body>
-        ${content}
-      </body>
-      </html>
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head><meta charset='utf-8'><title>${doc?.title || 'Document'}</title>
+      <style>body { font-family: 'Arial', sans-serif; } table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #000; padding: 5px; }</style>
+      </head><body>${content}</body></html>
     `;
 
-    const blob = new Blob(['\ufeff', header], {
-      type: 'application/msword'
-    });
-
+    const blob = new Blob(['\ufeff', header], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -329,144 +170,109 @@ const Editor = () => {
   if (isLoading) return <Loader fullScreen />;
 
   return (
-    <div className="editor-container animate-fade-in">
-      <div className="editor-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '50%' }}>
-          <button className="icon-btn" onClick={() => navigate('/dashboard')} title="Back to Dashboard">
-            <ChevronLeft size={20} />
-          </button>
-          <input 
-            type="text" 
-            className="editor-title-input" 
-            value={doc?.title || ''} 
-            onChange={handleTitleChange}
-            placeholder="Document Title"
+    <LexicalComposer initialConfig={initialConfig}>
+      <div className="editor-container animate-fade-in">
+        {/* HEADER SECTION (Same UI) */}
+        <div className="editor-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '50%' }}>
+            <button className="icon-btn" onClick={() => navigate('/dashboard')}>
+              <ChevronLeft size={20} />
+            </button>
+            <input 
+              type="text" 
+              className="editor-title-input" 
+              value={doc?.title || ''} 
+              onChange={(e) => setDoc({...doc, title: e.target.value})}
+              placeholder="Document Title"
+            />
+          </div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <span className="save-status sync-badge">
+              {isSaving || isSyncing ? 'Syncing...' : 'Synced'}
+            </span>
+            
+            <div className="editor-actions-desktop">
+              {/* Download Dropdown */}
+              <div className="download-dropdown-container">
+                <Button 
+                  variant="secondary" 
+                  onClick={() => setIsDownloadOpen(!isDownloadOpen)}
+                  style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}
+                >
+                  <Download size={16} /> Download
+                </Button>
+                
+                {isDownloadOpen && (
+                  <div className="download-menu glass-panel animate-slide-up">
+                    <button className="download-menu-item" onClick={() => { exportPDF(); setIsDownloadOpen(false); }}>
+                      <span className="format-icon pdf">PDF</span>
+                      <div className="format-info">
+                        <span>Portable Document</span>
+                        <small>Best for sharing & printing</small>
+                      </div>
+                    </button>
+                    <button className="download-menu-item" onClick={() => { exportDOCX(); setIsDownloadOpen(false); }}>
+                      <span className="format-icon docx">DOC</span>
+                      <div className="format-info">
+                        <span>Word Document</span>
+                        <small>Editable in MS Word</small>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <Button variant="secondary" onClick={() => setIsShareModalOpen(true)}>
+                <Share2 size={16} /> Share
+              </Button>
+              <Button onClick={handleSave} isLoading={isSaving}>
+                <Save size={16} /> Save
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* LEXICAL EDITOR WRAPPER */}
+        <div className="tiptap-wrapper glass-panel">
+          <LexicalToolbar />
+          
+          <div className="tiptap-editor-content">
+            <RichTextPlugin
+              contentEditable={<ContentEditable className="lexical-input" />}
+              placeholder={<div className="lexical-placeholder">Start writing something premium...</div>}
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+          </div>
+
+          {/* PLUGINS */}
+          <HistoryPlugin />
+          <ListPlugin />
+          <LinkPlugin />
+          <TablePlugin />
+          <SocketSyncPlugin 
+            socket={socket} 
+            docId={id} 
+            initialContent={documentContent} // 🚀 Pass holding data to plugin
+            isOnline={isOnline}
+            onSyncStatusChange={setIsSyncing}
           />
         </div>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          
-          <div className="active-users-stack">
-            {activeUsers.map((user, index) => (
-              <div 
-                key={user.id} 
-                className="user-avatar-small" 
-                style={{ backgroundColor: user.color, zIndex: 10 - index }}
-                title={`${user.name} is editing`}
-              >
-                {getInitials(user.name)}
-              </div>
-            ))}
-          </div>
 
-          {!isOnline && <span className="save-status" style={{color: 'var(--warning)'}}>Offline Mode</span>}
-          {error && <span className="save-status" style={{color: 'var(--warning)'}}>{error}</span>}
-          
-          <span className="save-status sync-badge">
-            {isSaving ? 'Syncing...' : isSyncing ? 'Syncing...' : 'Synced'}
-          </span>
-          
-          {/* Desktop Actions */}
-          <div className="editor-actions-desktop">
-            {/* Download Dropdown */}
-            <div className="download-dropdown-container">
-              <Button 
-                variant="secondary" 
-                onClick={() => setIsDownloadOpen(!isDownloadOpen)}
-                style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}
-              >
-                <Download size={16} /> Download
-              </Button>
-              
-              {isDownloadOpen && (
-                <div className="download-menu glass-panel animate-slide-up">
-                  <button className="download-menu-item" onClick={() => { exportPDF(); setIsDownloadOpen(false); }}>
-                    <span className="format-icon pdf">PDF</span>
-                    <div className="format-info">
-                      <span>Portable Document</span>
-                      <small>Best for sharing & printing</small>
-                    </div>
-                  </button>
-                  <button className="download-menu-item" onClick={() => { exportDOCX(); setIsDownloadOpen(false); }}>
-                    <span className="format-icon docx">DOC</span>
-                    <div className="format-info">
-                      <span>Word Document</span>
-                      <small>Editable in MS Word</small>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <Button variant="secondary" onClick={() => setIsShareModalOpen(true)} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <Share2 size={16} /> Share
-            </Button>
-            <Button 
-              variant="secondary" 
-              onClick={() => setIsDeleteModalOpen(true)} 
-              style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', color: 'var(--warning)' }}
-            >
-              <Trash2 size={16} /> Delete
-            </Button>
-            <Button onClick={handleSave} isLoading={isSaving} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <Save size={16} /> Save
-            </Button>
-          </div>
-
-          {/* Mobile Actions (More Menu) */}
-          <div className="editor-actions-mobile">
-            <button className="icon-btn" onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}>
-              <MoreVertical size={20} />
-            </button>
-            
-            {isMoreMenuOpen && (
-              <div className="more-menu glass-panel animate-slide-up">
-                <button className="more-menu-item" onClick={() => { handleSave(); setIsMoreMenuOpen(false); }}>
-                  <Save size={16} /> Save Document
-                </button>
-                <button className="more-menu-item" onClick={() => { setIsShareModalOpen(true); setIsMoreMenuOpen(false); }}>
-                  <Share2 size={16} /> Share Document
-                </button>
-                <button className="more-menu-item" onClick={() => { setIsDownloadOpen(true); setIsMoreMenuOpen(false); }}>
-                  <Download size={16} /> Export / Download
-                </button>
-                <button className="more-menu-item delete" onClick={() => { setIsDeleteModalOpen(true); setIsMoreMenuOpen(false); }}>
-                  <Trash2 size={16} /> Delete Document
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Advanced Tiptap Editor Wrapper */}
-      <div className="tiptap-wrapper glass-panel">
-        <EditorToolbar editor={editor} />
-        <EditorContent editor={editor} />
-      </div>
-
-      {isShareModalOpen && (
-        <ShareModal 
-          docId={id} 
-          onClose={() => setIsShareModalOpen(false)} 
-        />
-      )}
-      
-      {isDeleteModalOpen && (
-        <DeleteModal 
-          title={doc?.title} 
-          onClose={() => setIsDeleteModalOpen(false)} 
-          onDelete={async () => {
-            try {
+        {/* MODALS */}
+        {isShareModalOpen && <ShareModal docId={id} onClose={() => setIsShareModalOpen(false)} />}
+        {isDeleteModalOpen && (
+          <DeleteModal 
+            title={doc?.title} 
+            onClose={() => setIsDeleteModalOpen(false)} 
+            onDelete={async () => {
               await documentApi.deleteDoc(id);
               navigate('/dashboard');
-            } catch (err) {
-              setError('Failed to delete document');
-            }
-          }} 
-        />
-      )}
-    </div>
+            }} 
+          />
+        )}
+      </div>
+    </LexicalComposer>
   );
 };
 

@@ -1,7 +1,8 @@
 .editor-container {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh; /* 🚀 Fill the whole viewport */
+  overflow: hidden; /* 🚀 No page-level scrollbar */
 }
 
 .editor-header {
@@ -9,13 +10,10 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.5rem;
-  position: sticky;
-  top: -2rem; /* Matches content-wrapper padding */
-  z-index: 110;
   background-color: var(--bg-primary);
   border-bottom: 1px solid var(--border-color);
-  margin: -2rem -2rem 0 -2rem;
   min-height: 4.5rem;
+  flex-shrink: 0; /* 🚀 Lock header height */
 }
 
 @media (max-width: 768px) {
@@ -72,15 +70,13 @@
 /* Sticky Toolbar */
 .tiptap-toolbar {
   position: sticky;
-  top: 2.5rem; /* Exactly below header (4.5rem - 2rem padding) */
+  top: 0; 
   z-index: 105;
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  margin-left: -2rem;
-  margin-right: -2rem;
   padding: 0.75rem 1.5rem;
+  flex-shrink: 0; /* 🚀 Lock toolbar height */
 }
 
 @media (max-width: 768px) {
@@ -96,17 +92,17 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  margin-top: 0;
-  border: none; /* Removed to allow full-width toolbar */
-  overflow: visible;
+  overflow: hidden; /* 🚀 Inner contents handle scroll */
 }
 
 /* Tiptap Prosemirror Container */
 .tiptap-editor-content {
   flex: 1;
   background-color: var(--bg-primary);
-  padding: 2.5rem 3.5rem;
-  overflow: visible;
+  padding: 2rem 3.5rem;
+  overflow-y: auto; /* 🚀 ONLY scrollbar is here */
+  height: 100%;
+  position: relative; /* 🚀 For placeholder positioning */
 }
 
 @media (max-width: 768px) {
@@ -560,4 +556,149 @@ ul[data-type="taskList"] li > div {
 .btn-text {
   font-size: 0.85rem;
   font-weight: 500;
+}
+
+/* ==========================================
+   LEXICAL EDITOR SPECIFIC STYLES
+   ========================================== */
+
+.lexical-input {
+  outline: none;
+  min-height: 600px;
+  color: var(--text-primary);
+  font-family: inherit;
+  line-height: 1.6;
+  padding-bottom: 40vh;
+}
+
+.lexical-placeholder {
+  color: var(--text-muted);
+  overflow: hidden;
+  position: absolute;
+  text-overflow: ellipsis;
+  top: 2rem; /* 🚀 Align with padding-top */
+  left: 3.5rem; /* 🚀 Align with padding-left */
+  font-size: 1.1rem;
+  user-select: none;
+  display: inline-block;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .lexical-placeholder {
+    top: 1.5rem;
+    left: 1.5rem;
+  }
+}
+
+/* Lexical Node Styling (Matches our Tiptap Typography) */
+.editor-heading-h1 { font-size: 2.25rem; line-height: 1.2; font-weight: 700; margin-top: 1.5em; margin-bottom: 0.5em; }
+.editor-heading-h2 { font-size: 1.75rem; line-height: 1.3; font-weight: 600; margin-top: 1.5em; margin-bottom: 0.5em; }
+.editor-heading-h3 { font-size: 1.25rem; line-height: 1.4; font-weight: 600; margin-top: 1.5em; margin-bottom: 0.5em; }
+
+.editor-paragraph {
+  margin-bottom: 0.75rem;
+}
+
+.editor-quote {
+  border-left: 3px solid var(--border-color);
+  padding-left: 1rem;
+  margin-left: 0;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-bottom: 1rem;
+}
+
+.editor-list-ul, .editor-list-ol {
+  padding: 0 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.editor-listitem {
+  margin-bottom: 0.25rem;
+}
+
+.editor-text-bold { font-weight: bold; }
+.editor-text-italic { font-style: italic; }
+.editor-text-underline { text-decoration: underline; }
+.editor-text-strikethrough { text-decoration: line-through; }
+
+.editor-text-code {
+  background-color: rgba(99, 102, 241, 0.1);
+  color: var(--accent-primary);
+  padding: 0.2em 0.4em;
+  border-radius: var(--radius-sm);
+  font-size: 0.85em;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+/* Toolbar active states for Lexical */
+.toolbar-item {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toolbar-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.toolbar-item.is-active {
+  color: var(--accent-primary);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+.toolbar-divider {
+  width: 1px;
+  background: var(--border-color);
+  height: 24px;
+  margin: 0 0.5rem;
+}
+/* Table Styling (Lexical) */
+.editor-table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  max-width: 100%;
+  overflow-y: scroll;
+  table-layout: fixed;
+  width: 100%;
+  margin: 1rem 0;
+}
+
+.editor-table-cell {
+  border: 1px solid var(--border-color);
+  padding: 0.5rem;
+  vertical-align: top;
+  position: relative;
+}
+
+.editor-table-cell-header {
+  background-color: var(--bg-tertiary);
+  font-weight: bold;
+  text-align: left;
+}
+
+/* Toolbar Selects */
+.toolbar-select {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.toolbar-select:hover {
+  border-color: var(--accent-primary);
 }
