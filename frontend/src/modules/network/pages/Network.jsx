@@ -57,8 +57,7 @@ const Network = () => {
     fetchData();
     const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
     const s = io(SOCKET_URL, {
-      withCredentials: true,
-      transports: ['websocket']
+      withCredentials: true
     });
     setSocket(s);
     return () => s.disconnect();
@@ -145,9 +144,12 @@ const Network = () => {
   };
 
   const ignoreRequest = async (connectionId) => {
+    // 🚀 Optimistically remove from UI
     setPendingRequests(prev => prev.filter(r => r._id !== connectionId));
     try {
-      await networkApi.acceptRequest(connectionId); 
+      // 🚀 FIX: Ignore should NOT accept. 
+      // For now, since there's no reject endpoint, we just remove it from UI.
+      // If a reject endpoint is added later, call it here.
     } catch (err) {
       fetchData();
     }

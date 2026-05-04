@@ -2,7 +2,7 @@ import axios from "axios";
 import { API_ENDPOINTS } from "./constants";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:4000',
   withCredentials: true,
 });
 
@@ -50,7 +50,7 @@ api.interceptors.response.use(
 
       try {
         await axios.post(
-          (import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000') + API_ENDPOINTS.REFRESH_TOKEN,
+          (import.meta.env.VITE_API_URL || 'http://localhost:4000') + API_ENDPOINTS.REFRESH_TOKEN,
           {},
           { withCredentials: true }
         );

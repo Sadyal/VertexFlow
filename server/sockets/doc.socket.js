@@ -59,4 +59,25 @@ export const registerDocHandlers = (io, socket) => {
       console.error("❌ save-document error:", err.message);
     }
   });
+
+  // UPDATE TITLE (REAL-TIME SYNC)
+  socket.on("update-title", async (newTitle) => {
+    try {
+      if (!socket.currentDoc) return;
+
+      // Broadcast to other collaborators
+      socket.broadcast
+        .to(socket.currentDoc)
+        .emit("receive-title-update", newTitle);
+
+      // Persist to DB in background
+      await Document.findByIdAndUpdate(
+        socket.currentDoc,
+        { title: newTitle },
+        { new: false }
+      );
+    } catch (err) {
+      console.error("❌ update-title error:", err.message);
+    }
+  });
 };

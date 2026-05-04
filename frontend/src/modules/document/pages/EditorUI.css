@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Roboto:wght@400;500;700&display=swap');
+
 .editor-container {
   display: flex;
   flex-direction: column;
@@ -68,51 +70,51 @@
 }
 
 /* Sticky Toolbar */
-.tiptap-toolbar {
+.lexical-toolbar {
   position: sticky;
   top: 0; 
   z-index: 105;
   background-color: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
   backdrop-filter: blur(12px);
-  padding: 0.75rem 1.5rem;
-  flex-shrink: 0; /* 🚀 Lock toolbar height */
+  padding: 0.75rem 1rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  overflow-x: auto; /* 🚀 Enable swipe on mobile */
+  scrollbar-width: none; /* Hide scrollbar for clean look */
 }
 
-@media (max-width: 768px) {
-  .tiptap-toolbar {
-    top: 2.75rem; /* Adjust for mobile header height */
-    margin-left: -1rem;
-    margin-right: -1rem;
-    padding: 0.5rem;
-  }
+.lexical-toolbar::-webkit-scrollbar {
+  display: none; /* Hide scrollbar Chrome/Safari */
 }
 
-.tiptap-wrapper {
+.lexical-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden; /* 🚀 Inner contents handle scroll */
 }
 
-/* Tiptap Prosemirror Container */
-.tiptap-editor-content {
+/* Lexical Content Container */
+.lexical-editor-content {
   flex: 1;
   background-color: var(--bg-primary);
   padding: 2rem 3.5rem;
   overflow-y: auto; /* 🚀 ONLY scrollbar is here */
   height: 100%;
-  position: relative; /* 🚀 For placeholder positioning */
+  position: relative;
 }
 
 @media (max-width: 768px) {
-  .tiptap-editor-content {
-    padding: 1.5rem;
+  .lexical-editor-content {
+    padding: 1.5rem 1rem; /* 🚀 Reduce padding on mobile */
   }
 }
 
 /* Tiptap Internal Typography Styles */
-.tiptap-editor-content .ProseMirror {
+.lexical-editor-content .ProseMirror {
   outline: none;
   min-height: 600px;
   color: var(--text-primary);
@@ -121,20 +123,20 @@
   padding-bottom: 40vh;
 }
 
-.tiptap-editor-content .ProseMirror > * + * {
+.lexical-editor-content .ProseMirror > * + * {
   margin-top: 0.75em;
 }
 
-.tiptap-editor-content .ProseMirror h1 { font-size: 2.25rem; line-height: 1.2; font-weight: 700; margin-top: 1.5em; }
-.tiptap-editor-content .ProseMirror h2 { font-size: 1.75rem; line-height: 1.3; font-weight: 600; margin-top: 1.5em; }
-.tiptap-editor-content .ProseMirror h3 { font-size: 1.25rem; line-height: 1.4; font-weight: 600; margin-top: 1.5em; }
+.lexical-editor-content .ProseMirror h1 { font-size: 2.25rem; line-height: 1.2; font-weight: 700; margin-top: 1.5em; }
+.lexical-editor-content .ProseMirror h2 { font-size: 1.75rem; line-height: 1.3; font-weight: 600; margin-top: 1.5em; }
+.lexical-editor-content .ProseMirror h3 { font-size: 1.25rem; line-height: 1.4; font-weight: 600; margin-top: 1.5em; }
 
-.tiptap-editor-content .ProseMirror ul,
-.tiptap-editor-content .ProseMirror ol {
+.lexical-editor-content .ProseMirror ul,
+.lexical-editor-content .ProseMirror ol {
   padding: 0 1rem;
 }
 
-.tiptap-editor-content .ProseMirror blockquote {
+.lexical-editor-content .ProseMirror blockquote {
   border-left: 3px solid var(--border-color);
   padding-left: 1rem;
   margin-left: 0;
@@ -142,7 +144,7 @@
   font-style: italic;
 }
 
-.tiptap-editor-content .ProseMirror pre {
+.lexical-editor-content .ProseMirror pre {
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
   padding: 1rem;
@@ -150,7 +152,7 @@
   font-family: 'Courier New', Courier, monospace;
 }
 
-.tiptap-editor-content .ProseMirror code {
+.lexical-editor-content .ProseMirror code {
   background-color: rgba(99, 102, 241, 0.1);
   color: var(--accent-primary);
   padding: 0.2em 0.4em;
@@ -158,19 +160,19 @@
   font-size: 0.85em;
 }
 
-.tiptap-editor-content .ProseMirror mark {
+.lexical-editor-content .ProseMirror mark {
   background-color: #fef08a;
   border-radius: 2px;
   padding: 0 2px;
 }
 
-.tiptap-editor-content .ProseMirror a {
+.lexical-editor-content .ProseMirror a {
   color: var(--accent-primary);
   text-decoration: underline;
   cursor: pointer;
 }
 
-.tiptap-editor-content .ProseMirror img {
+.lexical-editor-content .ProseMirror img {
   max-width: 100% !important;
   height: auto !important;
   border-radius: var(--radius-md);
@@ -183,7 +185,7 @@
   -webkit-user-drag: none;
 }
 
-.tiptap-editor-content .ProseMirror img.ProseMirror-selectednode {
+.lexical-editor-content .ProseMirror img.ProseMirror-selectednode {
   outline: 4px solid var(--accent-primary);
   outline-offset: 4px;
   box-shadow: 0 0 0 15px rgba(99, 102, 241, 0.15);
@@ -222,7 +224,7 @@ ul[data-type="taskList"] li > div {
 }
 
 /* Tables */
-.tiptap-editor-content .ProseMirror table {
+.lexical-editor-content .ProseMirror table {
   border-collapse: collapse;
   table-layout: fixed;
   width: 100%;
@@ -230,8 +232,8 @@ ul[data-type="taskList"] li > div {
   overflow: hidden;
 }
 
-.tiptap-editor-content .ProseMirror td,
-.tiptap-editor-content .ProseMirror th {
+.lexical-editor-content .ProseMirror td,
+.lexical-editor-content .ProseMirror th {
   min-width: 1em;
   border: 1px solid var(--border-color);
   padding: 0.5rem;
@@ -240,13 +242,13 @@ ul[data-type="taskList"] li > div {
   position: relative;
 }
 
-.tiptap-editor-content .ProseMirror th {
+.lexical-editor-content .ProseMirror th {
   font-weight: bold;
   text-align: left;
   background-color: var(--bg-tertiary);
 }
 
-.tiptap-editor-content .ProseMirror .selectedCell:after {
+.lexical-editor-content .ProseMirror .selectedCell:after {
   z-index: 2;
   position: absolute;
   content: "";
@@ -255,7 +257,7 @@ ul[data-type="taskList"] li > div {
   pointer-events: none;
 }
 
-.tiptap-editor-content .ProseMirror .column-resize-handle {
+.lexical-editor-content .ProseMirror .column-resize-handle {
   position: absolute;
   right: -2px;
   top: 0;
@@ -266,7 +268,7 @@ ul[data-type="taskList"] li > div {
 }
 
 /* Placeholder Extension Support */
-.tiptap-editor-content .ProseMirror p.is-editor-empty:first-child::before {
+.lexical-editor-content .ProseMirror p.is-editor-empty:first-child::before {
   color: var(--text-muted);
   content: attr(data-placeholder);
   float: left;
@@ -429,26 +431,13 @@ ul[data-type="taskList"] li > div {
   color: var(--warning);
 }
 
-/* Tiptap Toolbar Mobile Scroll */
-@media (max-width: 900px) {
-  .tiptap-toolbar {
-    overflow-x: auto;
-    overflow-y: hidden;
-    display: flex;
-    white-space: nowrap;
-    padding: 0.5rem 1rem;
-    scrollbar-width: none; /* Hide scrollbar Firefox */
-    -ms-overflow-style: none; /* Hide scrollbar IE/Edge */
-    gap: 0.5rem;
-  }
-  
-  .tiptap-toolbar::-webkit-scrollbar {
-    display: none; /* Hide scrollbar Chrome/Safari */
-  }
-
-  .toolbar-group {
-    flex-shrink: 0;
-  }
+/* Lexical Toolbar Mobile Scroll */
+/* Mobile Scroll Optimization */
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0; /* 🚀 Prevent groups from squishing */
 }
 
 /* Animations */
@@ -595,9 +584,32 @@ ul[data-type="taskList"] li > div {
 .editor-heading-h1 { font-size: 2.25rem; line-height: 1.2; font-weight: 700; margin-top: 1.5em; margin-bottom: 0.5em; }
 .editor-heading-h2 { font-size: 1.75rem; line-height: 1.3; font-weight: 600; margin-top: 1.5em; margin-bottom: 0.5em; }
 .editor-heading-h3 { font-size: 1.25rem; line-height: 1.4; font-weight: 600; margin-top: 1.5em; margin-bottom: 0.5em; }
+.editor-heading-h4 { font-size: 1.1rem; line-height: 1.5; font-weight: 500; color: var(--text-secondary); margin-top: 1.25em; margin-bottom: 0.5em; font-style: italic; }
 
 .editor-paragraph {
   margin-bottom: 0.75rem;
+}
+
+/* Resizable Images */
+.editor-image {
+  max-width: 100%;
+  height: auto;
+  cursor: nwse-resize; /* Resizing cursor */
+  display: block;
+  margin: 1rem 0;
+  border-radius: var(--radius-md);
+  transition: box-shadow 0.2s ease;
+  resize: both;
+  overflow: hidden;
+}
+
+.editor-image:hover {
+  box-shadow: 0 0 0 3px var(--accent-primary);
+}
+
+.editor-image:focus {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--accent-primary);
 }
 
 .editor-quote {
@@ -656,6 +668,19 @@ ul[data-type="taskList"] li > div {
   background: rgba(99, 102, 241, 0.1);
 }
 
+.toolbar-item.small {
+  padding: 0.25rem;
+  width: 24px;
+  height: 24px;
+}
+
+.font-size-controls {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
 .toolbar-divider {
   width: 1px;
   background: var(--border-color);
@@ -701,4 +726,59 @@ ul[data-type="taskList"] li > div {
 
 .toolbar-select:hover {
   border-color: var(--accent-primary);
+}
+/* Color Pickers */
+.color-picker-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  color: var(--text-secondary);
+}
+
+.color-picker-wrapper:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+}
+
+.toolbar-color-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0; /* Hide actual input, trigger via wrapper */
+  cursor: pointer;
+}
+
+.color-icon {
+  pointer-events: none;
+}
+/* Horizontal Rule */
+.editor-hr {
+  border: none;
+  border-top: 2px solid var(--border-color);
+  margin: 2rem 0;
+  cursor: pointer;
+}
+
+.editor-hr.selected {
+  border-top-color: var(--accent-primary);
+  outline: none;
+}
+
+/* Checklist */
+.editor-list-ul.editor-checklist {
+  list-style-type: none;
+  padding: 0;
+}
+
+.editor-checklist-item-checkbox {
+  margin-right: 0.5rem;
+  cursor: pointer;
 }

@@ -22,6 +22,8 @@ const theme = {
   table: 'editor-table',
   tableCell: 'editor-table-cell',
   tableCellHeader: 'editor-table-cell-header',
+  hr: 'editor-hr',
+  listitemCheckbox: 'editor-checklist-item-checkbox',
   image: 'editor-image',
   link: 'editor-link',
   text: {

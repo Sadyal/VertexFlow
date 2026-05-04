@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { documentApi } from './doc.api';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * @hook useDocuments
@@ -8,6 +9,7 @@ import { documentApi } from './doc.api';
  * equality and prevent unnecessary re-renders in children.
  */
 export const useDocuments = () => {
+  const { user } = useAuth();
   // ==========================================
   // STATE MANAGEMENT
   // ==========================================
@@ -50,8 +52,10 @@ export const useDocuments = () => {
       const response = await documentApi.createDoc(data);
       if (response.success) {
         const newDoc = {
+          _id: response.data.id, // 🚀 Sync with MongoDB naming
           id: response.data.id,
           title: data.title || 'Untitled Document',
+          owner: user?.id || user?._id, // 🚀 Critical: Fixes the 'vanishing doc' bug
           updatedAt: new Date().toISOString()
         };
         setDocs(prev => [newDoc, ...prev]);
