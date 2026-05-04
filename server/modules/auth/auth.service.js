@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import validator from "validator";
 import userModel from "../../models/user.model.js";
 import {
   generateAccessToken,
@@ -43,6 +44,10 @@ export const registerUser = async ({ name, email, password }) => {
     throw createError("All fields are required", 400);
   }
 
+  if (!validator.isEmail(email)) {
+    throw createError("Please provide a valid email address", 400);
+  }
+
   const normalizedEmail = normalizeEmail(email);
 
   if (password.length < 6) {
@@ -62,7 +67,7 @@ export const registerUser = async ({ name, email, password }) => {
     email: normalizedEmail,
     password: hashedPassword,
     verifyOtp: otp,
-    verifyOtpExpireAt: Date.now() + 24 * 60 * 60 * 1000,
+    verifyOtpExpireAt: Date.now() + 15 * 60 * 1000, // 🚀 15 mins (was 24h)
     isAccountVerified: false,
   });
 
@@ -196,18 +201,18 @@ export const sendVerifyOtpService = async (userId) => {
     throw createError("Account already verified", 400);
   }
 
-  // 🔐 anti-spam cooldown
+  // 🔐 anti-spam cooldown (allow 1 request every 60 seconds)
   if (
     user.verifyOtpExpireAt &&
-    Date.now() < user.verifyOtpExpireAt - 23 * 60 * 60 * 1000
+    Date.now() < user.verifyOtpExpireAt - 14 * 60 * 1000
   ) {
-    throw createError("OTP already sent. Please check your email.", 429);
+    throw createError("Please wait 60 seconds before requesting another code.", 429);
   }
 
   const otp = generateOtp();
 
   user.verifyOtp = otp;
-  user.verifyOtpExpireAt = Date.now() + 24 * 60 * 60 * 1000;
+  user.verifyOtpExpireAt = Date.now() + 15 * 60 * 1000; // 🚀 15 mins
 
   await user.save();
 
@@ -272,6 +277,10 @@ export const verifyEmailService = async ({ email, otp }) => {
 export const sendResetOtpService = async (email) => {
   if (!email) {
     throw createError("Email is required", 400);
+  }
+
+  if (!validator.isEmail(email)) {
+    throw createError("Please provide a valid email address", 400);
   }
 
   const normalizedEmail = normalizeEmail(email);

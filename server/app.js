@@ -7,8 +7,18 @@ import authRoutes from "./modules/auth/auth.routes.js";
 import docRoutes from "./modules/document/doc.routes.js";
 import networkRoutes from "./modules/network/network.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
+import { globalLimiter } from "./middleware/rateLimiter.js";
 
 const app = express();
+
+/**
+ * 📡 PROXY TRUST
+ * Required for express-rate-limit to see the real client IP 
+ * when deployed behind a proxy (Nginx, Vercel, etc.)
+ */
+if (process.env.NODE_ENV === "production") {
+  app.set('trust proxy', 1);
+}
 
 /**
  * 🌍 ENV
@@ -19,6 +29,7 @@ const isProd = process.env.NODE_ENV === "production";
  * 🔐 SECURITY HEADERS
  */
 app.use(helmet());
+app.use(globalLimiter); // 🚀 Apply to all routes
 
 /**
  * 🌐 CORS CONFIG (MOVE BEFORE ROUTES)
