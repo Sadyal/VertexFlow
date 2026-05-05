@@ -41,23 +41,41 @@ export const AuthProvider = ({ children }) => {
   const [userAvatar, setUserAvatar] = useState(() => {
     return localStorage.getItem('user_avatar');
   });
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [isInitializing, setIsInitializing] = useState(() => {
+    // ⚡ INSTANT BOOT: If we have a cached user, don't show the global loader.
+    // We will verify the session in the background.
+    return !localStorage.getItem('user');
+  });
 
   // Helper to update user state and persistence
   const handleSetUser = (userData) => {
-    setUser(userData);
-    if (userData) {
-      localStorage.setItem('user', JSON.stringify(userData));
-      if (userData.avatar) {
-        setUserAvatar(userData.avatar);
-        localStorage.setItem('user_avatar', userData.avatar);
+    setUser((prev) => {
+      const nextUser = typeof userData === 'function' ? userData(prev) : userData;
+      if (nextUser) {
+        localStorage.setItem('user', JSON.stringify(nextUser));
+      } else {
+        localStorage.removeItem('user');
+        localStorage.removeItem('user_avatar');
+      }
+      return nextUser;
+    });
+  };
+
+  // 🔄 Sync avatar state and localStorage whenever user object changes
+  useEffect(() => {
+    if (user) {
+      if (user.avatar) {
+        setUserAvatar(user.avatar);
+        localStorage.setItem('user_avatar', user.avatar);
+      } else {
+        setUserAvatar(null);
+        localStorage.removeItem('user_avatar');
       }
     } else {
-      localStorage.removeItem('user');
-      localStorage.removeItem('user_avatar');
       setUserAvatar(null);
+      localStorage.removeItem('user_avatar');
     }
-  };
+  }, [user]);
 
   // ==========================================
   // LIFECYCLE / SESSION CHECK
@@ -96,13 +114,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const updateAvatar = (newAvatar) => {
-    setUserAvatar(newAvatar);
-    localStorage.setItem('user_avatar', newAvatar);
-    if (user?._id || user?.id) {
-      const updatedUser = { ...user, avatar: newAvatar };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-    }
+    handleSetUser(prev => prev ? { ...prev, avatar: newAvatar } : prev);
   };
 
   // ==========================================
@@ -118,7 +130,7 @@ export const AuthProvider = ({ children }) => {
       updateAvatar,
       fetchUser: checkSession
     }}>
-      {isInitializing && !user ? <Loader fullScreen /> : children}
+      {children}
     </AuthContext.Provider>
   );
 };

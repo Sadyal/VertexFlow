@@ -20,9 +20,12 @@ const DocList = memo(({ docs, isLoading, error, onDelete, onRename }) => {
 
   if (!docs || docs.length === 0) {
     return (
-      <div className="empty-state">
-        <FileQuestion size={48} color="var(--text-muted)" />
-        <p>No documents found. Create one to get started!</p>
+      <div className="empty-state animate-fade-in">
+        <div className="empty-state-icon-wrapper">
+          <FileQuestion size={64} strokeWidth={1} className="text-muted" />
+        </div>
+        <h3>No documents found</h3>
+        <p>Your workspace is empty. Create your first document to start collaborating!</p>
       </div>
     );
   }

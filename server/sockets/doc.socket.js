@@ -52,7 +52,7 @@ export const registerDocHandlers = (io, socket) => {
       await Document.findByIdAndUpdate(
         socket.currentDoc,
         { content: data },
-        { new: false }
+        { returnDocument: 'before' }
       );
 
     } catch (err) {
@@ -74,7 +74,7 @@ export const registerDocHandlers = (io, socket) => {
       await Document.findByIdAndUpdate(
         socket.currentDoc,
         { title: newTitle },
-        { new: false }
+        { returnDocument: 'before' }
       );
     } catch (err) {
       console.error("❌ update-title error:", err.message);

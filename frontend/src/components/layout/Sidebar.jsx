@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Settings, X, LogOut, Users } from 'lucide-react';
+import { LayoutDashboard, FileText, User, X, LogOut, Users } from 'lucide-react';
 import { ROUTES } from '../../utils/constants';
 import { useLogout } from '../../modules/auth/auth.hooks';
 
@@ -34,11 +34,11 @@ const Sidebar = ({ isOpen, onClose }) => {
           <span>Dashboard</span>
         </NavLink>
         <NavLink 
-          to="/profile" 
+          to={ROUTES.PROFILE} 
           className={({ isActive }) => isActive ? 'sidebar-nav-item active' : 'sidebar-nav-item'}
         >
-          <Settings size={20} />
-          <span>Settings</span>
+          <User size={20} />
+          <span>Profile</span>
         </NavLink>
         <NavLink 
           to="/network" 

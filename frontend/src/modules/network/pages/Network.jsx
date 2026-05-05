@@ -30,8 +30,12 @@ const Network = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [friends, setFriends] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [friends, setFriends] = useState(() => {
+    // ⚡ INSTANT LOAD: Initialize from cache if available
+    const cached = localStorage.getItem(`network_friends_${user?._id || user?.id}`);
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [isLoading, setIsLoading] = useState(!friends.length); // Only show loader if cache is empty
   const [isSearching, setIsSearching] = useState(false);
   const [activeChat, setActiveChat] = useState(null);
   const [socket, setSocket] = useState(null);
@@ -45,7 +49,11 @@ const Network = () => {
         networkApi.getFriends()
       ]);
       if (requestsRes.success) setPendingRequests(requestsRes.data);
-      if (friendsRes.success) setFriends(friendsRes.data);
+      if (friendsRes.success) {
+        setFriends(friendsRes.data);
+        // ⚡ CACHE UPDATE: Store for next refresh
+        localStorage.setItem(`network_friends_${user?._id || user?.id}`, JSON.stringify(friendsRes.data));
+      }
     } catch (err) {
       console.error("Failed to fetch network data:", err);
     } finally {

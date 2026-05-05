@@ -25,6 +25,11 @@ const connectionSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'accepted', 'rejected'],
     default: 'pending'
+  },
+  lastMessage: {
+    content: String,
+    sender: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    createdAt: { type: Date, default: Date.now }
   }
 }, {
   timestamps: true

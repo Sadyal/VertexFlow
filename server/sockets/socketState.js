@@ -2,39 +2,62 @@ import redis from "../config/redis.js";
 
 
 const REDIS_KEY_ONLINE_USERS = "online_users";
-const REDIS_KEY_USER_COUNTS = "user_socket_counts";
+const REDIS_PREFIX_USER_SOCKETS = "user_sockets:"; // Set of socket IDs per user
 
 /**
  * Register a user's socket. 
+ * Returns true if this is the user's first active socket (status changed to Online).
  */
 export const registerUserSocket = async (socket, userId) => {
   try {
     const uid = userId.toString();
+    const sid = socket.id;
     socket.join(`user:${uid}`);
 
     if (redis) {
-      await redis.hincrby(REDIS_KEY_USER_COUNTS, uid, 1);
+      const userSocketsKey = `${REDIS_PREFIX_USER_SOCKETS}${uid}`;
+      // Add this specific socket ID to the user's set
+      await redis.sadd(userSocketsKey, sid);
+      // Ensure they are in the global online users set
       await redis.sadd(REDIS_KEY_ONLINE_USERS, uid);
+      
+      const count = await redis.scard(userSocketsKey);
+      return count === 1;
     }
+    return true;
   } catch (error) {
     console.error("❌ registerUserSocket Redis error:", error.message);
+    return true;
   }
 };
 
-export const removeUserSocket = async (io, userId) => {
+/**
+ * Remove a user's socket.
+ * Returns true if this was the user's last active socket (status changed to Offline).
+ */
+export const removeUserSocket = async (io, userId, socketId) => {
   try {
     const uid = userId.toString();
+    const sid = socketId;
     
     if (redis) {
-      const newCount = await redis.hincrby(REDIS_KEY_USER_COUNTS, uid, -1);
+      const userSocketsKey = `${REDIS_PREFIX_USER_SOCKETS}${uid}`;
+      // Remove this specific socket ID
+      await redis.srem(userSocketsKey, sid);
       
-      if (newCount <= 0) {
+      const count = await redis.scard(userSocketsKey);
+      
+      if (count === 0) {
         await redis.srem(REDIS_KEY_ONLINE_USERS, uid);
-        await redis.hdel(REDIS_KEY_USER_COUNTS, uid);
+        await redis.del(userSocketsKey);
+        return true;
       }
+      return false;
     }
+    return true;
   } catch (error) {
     console.error("❌ removeUserSocket Redis error:", error.message);
+    return true;
   }
 };
 

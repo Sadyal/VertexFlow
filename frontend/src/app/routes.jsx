@@ -1,15 +1,21 @@
-import { Routes, Route } from 'react-router-dom';
-import { lazy, Suspense } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { lazy, Suspense, useEffect } from 'react';
 import ProtectedRoute from '../components/common/ProtectedRoute';
 import MainLayout from '../components/layout/MainLayout';
 import Loader from '../components/common/Loader';
 
-// Lazy load pages for performance
+// ==========================================
+// LAZY LOADING STRATEGY
+// ==========================================
+// Eager load only the most critical auth pages for instant access
+// Lazy load everything else to minimize initial bundle size
+
+import Login from '../modules/auth/pages/Login';
+import Register from '../modules/auth/pages/Register';
+
 const Home = lazy(() => import('../pages/Home'));
-const Login = lazy(() => import('../modules/auth/pages/Login'));
-const Register = lazy(() => import('../modules/auth/pages/Register'));
-import Dashboard from '../modules/document/pages/Dashboard';
-import Network from '../modules/network/pages/Network';
+const Dashboard = lazy(() => import('../modules/document/pages/Dashboard'));
+const Network = lazy(() => import('../modules/network/pages/Network'));
 const Editor = lazy(() => import('../modules/document/pages/Editor'));
 const Profile = lazy(() => import('../modules/user/pages/Profile'));
 const VerifyEmail = lazy(() => import('../modules/auth/pages/VerifyEmail'));
@@ -17,6 +23,13 @@ const ForgotPassword = lazy(() => import('../modules/auth/pages/ForgotPassword')
 const ResetPassword = lazy(() => import('../modules/auth/pages/ResetPassword'));
 
 const AppRoutes = () => {
+  const location = useLocation();
+
+  // 🚀 Performance: Scroll to top on route change
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+
   return (
     <Suspense fallback={<Loader fullScreen />}>
       <Routes>
@@ -41,3 +54,4 @@ const AppRoutes = () => {
 };
 
 export default AppRoutes;
+

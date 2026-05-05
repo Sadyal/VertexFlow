@@ -19,6 +19,20 @@ export default function setupSocket(server) {
     const subClient = getRedisDuplicate();
     io.adapter(createAdapter(redis, subClient));
     console.log("⚡ Redis Socket Adapter enabled");
+
+    // 🚀 BOOT-TIME CLEANUP: Clear stale presence data from previous runs
+    // This resolves "stuck" online statuses after server crashes.
+    (async () => {
+      try {
+        const keys = await redis.keys('user_sockets:*');
+        if (keys.length > 0) await redis.del(...keys);
+        await redis.del('online_users');
+        await redis.del('user_socket_counts'); // Clean up old legacy key too
+        console.log("🧹 Presence state cleaned on boot");
+      } catch (err) {
+        console.error("❌ Presence cleanup error:", err.message);
+      }
+    })();
   }
 
 
@@ -29,20 +43,27 @@ export default function setupSocket(server) {
     const userId = socket.userId;
     console.log("🔌 Connected:", socket.id, "| User:", userId);
 
-    // 🚀 FIX: Register handlers IMMEDIATELY so we don't miss any events 
-    // from the client during the async Redis registration.
+    // 🚀 Register handlers immediately
     registerDocHandlers(io, socket);
-    const networkPromise = registerNetworkHandlers(io, socket);
+    registerNetworkHandlers(io, socket);
 
     // Register user in Redis (multi-device support)
-    await registerUserSocket(socket, userId);
-    
-    // Ensure network handlers are fully ready
-    await networkPromise;
+    // Only broadcast "Online" if this is their first connection
+    const isFirstConnection = await registerUserSocket(socket, userId);
+    if (isFirstConnection) {
+      const { broadcastPresence } = await import('./network.socket.js');
+      await broadcastPresence(io, userId, true);
+    }
 
     socket.on("disconnect", async () => {
       console.log("⛔ Disconnected:", socket.id);
-      await removeUserSocket(io, userId);
+      
+      // Only broadcast "Offline" if this was their last active connection
+      const isLastConnection = await removeUserSocket(io, userId, socket.id);
+      if (isLastConnection) {
+        const { broadcastPresence } = await import('./network.socket.js');
+        await broadcastPresence(io, userId, false);
+      }
     });
   });
 

@@ -73,7 +73,7 @@ export const logout = async (req, res, next) => {
     if (req.userId) {
       userModel.findByIdAndUpdate(req.userId, {
         refreshToken: "",
-      }).catch(err => console.error("Logout DB error:", err));
+      }, { returnDocument: 'before' }).catch(err => console.error("Logout DB error:", err));
     }
 
     res.clearCookie("accessToken", accessTokenOptions);

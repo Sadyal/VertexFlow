@@ -56,14 +56,14 @@ const DocCard = memo(({ doc, onDelete, onRename }) => {
   // ==========================================
   return (
     <>
-      <div className="doc-card glass-panel group">
+      <div className="doc-card glass-panel animate-fade-in">
         <Link to={ROUTES.EDITOR(doc._id || doc.id)} className="doc-card-link">
           
           {/* Document Preview Area */}
           <div className="doc-card-preview">
             <div className="doc-card-preview-pattern"></div>
             <div className="doc-card-icon-wrapper">
-              <FileText size={32} className="doc-icon" />
+              <FileText size={32} strokeWidth={1.5} className="doc-icon" />
             </div>
           </div>
           
@@ -71,7 +71,9 @@ const DocCard = memo(({ doc, onDelete, onRename }) => {
           <div className="doc-card-content">
             <h3 className="doc-card-title">{doc.title || 'Untitled Document'}</h3>
             <div className="doc-card-meta-row">
-              <p className="doc-card-meta">Updated {formatDate(doc.updatedAt)}</p>
+              <div className="doc-card-meta">
+                <span>Updated {formatDate(doc.updatedAt)}</span>
+              </div>
             </div>
           </div>
         </Link>
@@ -79,25 +81,25 @@ const DocCard = memo(({ doc, onDelete, onRename }) => {
         {/* Quick Actions (Visible on Hover) */}
         <div className="doc-card-actions">
           <button 
-            className="icon-btn action-btn" 
+            className="action-btn" 
             title="Rename" 
             onClick={handleRenameClick}
           >
             <Edit2 size={16} />
           </button>
           <button 
-            className="icon-btn action-btn" 
-            title="Delete" 
-            onClick={handleDeleteClick}
-          >
-            <Trash2 size={16} />
-          </button>
-          <button 
-            className="icon-btn action-btn" 
+            className="action-btn" 
             title="Share Document" 
             onClick={handleShareClick}
           >
             <Share2 size={16} />
+          </button>
+          <button 
+            className="action-btn delete" 
+            title="Delete" 
+            onClick={handleDeleteClick}
+          >
+            <Trash2 size={16} />
           </button>
         </div>
       </div>

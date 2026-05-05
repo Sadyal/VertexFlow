@@ -118,108 +118,74 @@ export const getPendingRequestsService = async (userId) => {
  * @service getFriendsService
  * @description Optimized aggregation to fetch friends, unread count, and last message in one trip.
  */
+/**
+ * @service getFriendsService
+ * @description HIGH PERFORMANCE: Fetches friends, unread counts, last messages, and online status.
+ * Optimized with bulk retrieval and Redis set optimization.
+ */
 export const getFriendsService = async (userId) => {
   const uid = new mongoose.Types.ObjectId(userId);
 
-  // ⚡ HIGH PERFORMANCE AGGREGATION: Fetch friends, unread counts, and last messages in ONE trip
-  const friendsData = await Connection.aggregate([
-    {
-      $match: {
-        $or: [{ requester: uid }, { recipient: uid }],
-        status: 'accepted'
-      }
-    },
-    {
-      $addFields: {
-        friendId: {
-          $cond: [{ $eq: ['$requester', uid] }, '$recipient', '$requester']
-        }
-      }
-    },
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'friendId',
-        foreignField: '_id',
-        as: 'friendInfo'
-      }
-    },
-    { $unwind: '$friendInfo' },
-    {
-      // 📝 Fetch unread count for each friend
-      $lookup: {
-        from: 'messages',
-        let: { fId: '$friendId', currentUserId: uid },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $eq: ['$recipient', '$$currentUserId'] },
-                  { $eq: ['$sender', '$$fId'] },
-                  { $eq: ['$isRead', false] }
-                ]
-              }
-            }
-          },
-          { $count: 'count' }
-        ],
-        as: 'unread'
-      }
-    },
-    {
-      // 📝 Fetch the single latest message (sent or received)
-      $lookup: {
-        from: 'messages',
-        let: { fId: '$friendId', currentUserId: uid },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $or: [
-                  { $and: [{ $eq: ['$sender', '$$currentUserId'] }, { $eq: ['$recipient', '$$fId'] }] },
-                  { $and: [{ $eq: ['$recipient', '$$currentUserId'] }, { $eq: ['$sender', '$$fId'] }] }
-                ]
-              }
-            }
-          },
-          { $sort: { createdAt: -1 } },
-          { $limit: 1 }
-        ],
-        as: 'lastMsg'
-      }
-    },
-    {
-      $project: {
-        connectionId: '$_id',
-        friend: {
-          _id: '$friendInfo._id',
-          name: '$friendInfo.name',
-          email: '$friendInfo.email',
-          avatar: '$friendInfo.avatar'
-        },
-        unreadCount: { $ifNull: [{ $arrayElemAt: ['$unread.count', 0] }, 0] },
-        lastMessage: { $arrayElemAt: ['$lastMsg', 0] }
-      }
-    },
-    // Sort by last message activity (most recent first)
-    { $sort: { 'lastMessage.createdAt': -1 } }
+  // 1. Fetch all accepted connections (Minimal data)
+  const connections = await Connection.find({
+    $or: [{ requester: uid }, { recipient: uid }],
+    status: 'accepted'
+  }).populate('requester recipient', 'name email avatar').lean();
+
+  if (!connections.length) return [];
+
+  // 2. Extract friend objects and IDs
+  const friends = connections.map(conn => {
+    const friend = conn.requester._id.toString() === userId.toString() 
+      ? conn.recipient 
+      : conn.requester;
+    return { 
+      connectionId: conn._id, 
+      friend, 
+      lastMessage: conn.lastMessage // ⚡ Use denormalized data
+    };
+  });
+
+  const friendIds = friends.map(f => f.friend._id);
+
+  // 3. ⚡ BULK RETRIEVAL: Unread counts and Online status in parallel
+  const [unreadCounts, onlineUserIds] = await Promise.all([
+    // Unread counts for all friends at once
+    Message.aggregate([
+      { $match: { recipient: uid, sender: { $in: friendIds }, isRead: false } },
+      { $group: { _id: '$sender', count: { $sum: 1 } } }
+    ]),
+    
+    // Get all online users from Redis in ONE trip
+    import('../../sockets/socketState.js').then(m => m.getAllOnlineUsers())
   ]);
 
-  // Combine with real-time presence (Redis-based)
-  return await Promise.all(
-    friendsData.map(async (item) => ({
-      ...item,
-      isOnline: await isUserOnline(item.friend._id.toString()),
-      lastMessage: item.lastMessage
-        ? {
-            content: item.lastMessage.content,
-            createdAt: item.lastMessage.createdAt,
-            sender: item.lastMessage.sender,
-          }
-        : null,
-    }))
-  );
+  // 4. Transform into lookup maps for O(1) access
+  const unreadMap = Object.fromEntries(unreadCounts.map(u => [u._id.toString(), u.count]));
+  const onlineSet = new Set(onlineUserIds.map(id => id.toString()));
+
+  // 5. Merge and return
+  return friends.map(({ connectionId, friend, lastMessage }) => {
+    const fId = friend._id.toString();
+    
+    return {
+      connectionId,
+      friend,
+      unreadCount: unreadMap[fId] || 0,
+      isOnline: onlineSet.has(fId),
+      lastMessage: lastMessage ? {
+        content: lastMessage.content,
+        createdAt: lastMessage.createdAt,
+        sender: lastMessage.sender
+      } : null
+    };
+  })
+  // Sort by activity (last message timestamp)
+  .sort((a, b) => {
+    const timeA = a.lastMessage ? new Date(a.lastMessage.createdAt).getTime() : 0;
+    const timeB = b.lastMessage ? new Date(b.lastMessage.createdAt).getTime() : 0;
+    return timeB - timeA;
+  });
 };
 
 

@@ -1,21 +1,36 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { documentApi } from './doc.api';
 import { useAuth } from '../../context/AuthContext';
 
 /**
  * @hook useDocuments
  * @description Manages state and data fetching for the Document entity.
- * Utilizes useCallback to preserve referential 
- * equality and prevent unnecessary re-renders in children.
+ * Implements local caching and loop-prevention.
  */
 export const useDocuments = () => {
   const { user } = useAuth();
+  const userId = user?.id || user?._id;
+  const CACHE_KEY = `vf_docs_${userId}`;
+
   // ==========================================
   // STATE MANAGEMENT
   // ==========================================
-  const [docs, setDocs] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [docs, setDocs] = useState(() => {
+    if (!userId) return [];
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  
+  const [isLoading, setIsLoading] = useState(!docs.length); 
   const [error, setError] = useState(null);
+  
+  // 🚀 Loop Prevention: Track docs in a ref to avoid dependency cycles
+  const docsRef = useRef(docs);
+  docsRef.current = docs;
 
   // ==========================================
   // API METHODS
@@ -23,28 +38,33 @@ export const useDocuments = () => {
   
   /**
    * @function fetchDocs
-   * @description Retrieves the user's documents. Fallbacks to mock data on error.
+   * @description Retrieves the user's documents.
    */
   const fetchDocs = useCallback(async () => {
-    setIsLoading(true);
+    // 🚀 STABILITY FIX: Use docsRef instead of docs state in dependencies
+    // to prevent infinite re-render loops in components like Dashboard.
+    if (docsRef.current.length === 0) {
+      setIsLoading(true);
+    }
+    
     setError(null);
     try {
       const response = await documentApi.getDocs();
       if (response.success) {
         setDocs(response.data);
+        if (userId) {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(response.data));
+        }
       }
     } catch (err) {
       setError(err.message || 'Failed to fetch documents.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userId, CACHE_KEY]); // 🚀 Removed docs.length from here
 
   /**
    * @function createDoc
-   * @description Creates a new document. Fallbacks to a mock document on network failure.
-   * @param {Object} data - Document initialization data (title, content)
-   * @returns {Object} The created document object
    */
   const createDoc = useCallback(async (data) => {
     setError(null);
@@ -52,56 +72,68 @@ export const useDocuments = () => {
       const response = await documentApi.createDoc(data);
       if (response.success) {
         const newDoc = {
-          _id: response.data.id, // 🚀 Sync with MongoDB naming
+          _id: response.data.id,
           id: response.data.id,
           title: data.title || 'Untitled Document',
-          owner: user?.id || user?._id, // 🚀 Critical: Fixes the 'vanishing doc' bug
+          owner: userId,
           updatedAt: new Date().toISOString()
         };
-        setDocs(prev => [newDoc, ...prev]);
+        setDocs(prev => {
+          const updated = [newDoc, ...prev];
+          localStorage.setItem(CACHE_KEY, JSON.stringify(updated));
+          return updated;
+        });
         return newDoc;
       }
     } catch (err) {
       setError(err.message || 'Failed to create document.');
       return null;
     }
-  }, []);
+  }, [userId, CACHE_KEY]);
 
   /**
-   * @function deleteDoc
-   * @description Deletes a document and updates state
+   * @function removeDoc
    */
   const removeDoc = useCallback(async (id) => {
     try {
       const response = await documentApi.deleteDoc(id);
       if (response.success) {
-        setDocs(prev => prev.filter(doc => doc._id !== id && doc.id !== id));
+        setDocs(prev => {
+          const updated = prev.filter(doc => doc._id !== id && doc.id !== id);
+          localStorage.setItem(CACHE_KEY, JSON.stringify(updated));
+          return updated;
+        });
         return true;
       }
     } catch (err) {
       setError(err.message || 'Failed to delete document.');
       return false;
     }
-  }, []);
+  }, [CACHE_KEY]);
 
   /**
    * @function renameDoc
-   * @description Renames a document and updates state
    */
   const renameDoc = useCallback(async (id, newTitle) => {
     try {
       const response = await documentApi.updateDoc(id, { title: newTitle });
       if (response.success) {
-        setDocs(prev => prev.map(doc => 
-          (doc._id === id || doc.id === id) ? { ...doc, title: newTitle } : doc
-        ));
+        setDocs(prev => {
+          const updated = prev.map(doc => 
+            (doc._id === id || doc.id === id) ? { ...doc, title: newTitle } : doc
+          );
+          localStorage.setItem(CACHE_KEY, JSON.stringify(updated));
+          return updated;
+        });
         return true;
       }
     } catch (err) {
       setError(err.message || 'Failed to rename document.');
       return false;
     }
-  }, []);
+  }, [CACHE_KEY]);
 
   return { docs, isLoading, error, fetchDocs, createDoc, removeDoc, renameDoc };
 };
+
+

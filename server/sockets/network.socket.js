@@ -5,14 +5,18 @@ import * as networkService from '../modules/network/network.service.js';
 /**
  * Broadcast online status to all friends
  */
-const broadcastPresence = async (io, userId, isOnline) => {
-  const friendIds = await networkService.getFriendIdsService(userId);
-  friendIds.forEach(friendId => {
-    emitToUser(io, friendId, 'presence-update', {
-      userId,
-      isOnline
+export const broadcastPresence = async (io, userId, isOnline) => {
+  try {
+    const friendIds = await networkService.getFriendIdsService(userId);
+    friendIds.forEach(friendId => {
+      emitToUser(io, friendId, 'presence-update', {
+        userId,
+        isOnline
+      });
     });
-  });
+  } catch (error) {
+    console.error("❌ broadcastPresence error:", error.message);
+  }
 };
 
 /**
@@ -21,13 +25,11 @@ const broadcastPresence = async (io, userId, isOnline) => {
 export const registerNetworkHandlers = async (io, socket) => {
   const userId = socket.userId;
 
-  // Notify friends that user is online
-  await broadcastPresence(io, userId, true);
+  // 📝 Note: Presence is now managed centrally in index.js 
+  // to support multi-device/multi-tab consistency.
 
-  // Handle disconnection
-  socket.on('disconnect', async () => {
-    await broadcastPresence(io, userId, false);
-  });
+  // Handle disconnection (handled centrally in index.js now)
+  // socket.on('disconnect', async () => { ... });
 
 
   /**

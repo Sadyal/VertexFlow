@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  Share2, Save, ChevronLeft, Trash2, Download, MoreVertical 
+  Share2, Save, ChevronLeft, Trash2, Download, MoreVertical, Sparkles
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 
@@ -43,7 +43,7 @@ import { INSERT_IMAGE_COMMAND, $createImageNode } from './ImageNode.jsx';
 // VertexFlow Components & Utils
 import { documentApi } from '../doc.api';
 import Button from '../../../components/common/Button';
-import Loader from '../../../components/common/Loader';
+import Skeleton from '../../../components/common/Skeleton';
 import ShareModal from '../components/ShareModal';
 import DeleteModal from '../components/DeleteModal';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
@@ -52,10 +52,42 @@ import './EditorUI.css';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
+// ==========================================
+// SKELETON COMPONENT
+// ==========================================
+const EditorSkeleton = memo(() => (
+  <div className="editor-container animate-fade-in">
+    <div className="editor-header">
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '50%' }}>
+        <Skeleton width="40px" height="40px" borderRadius="50%" />
+        <Skeleton width="250px" height="2rem" />
+      </div>
+      <div style={{ display: 'flex', gap: '1rem' }}>
+        <Skeleton width="80px" height="1rem" />
+        <Skeleton width="100px" height="2.5rem" borderRadius="var(--radius-md)" />
+        <Skeleton width="100px" height="2.5rem" borderRadius="var(--radius-md)" />
+      </div>
+    </div>
+    
+    <div className="lexical-wrapper glass-panel" style={{ overflow: 'hidden' }}>
+      <div className="toolbar" style={{ borderBottom: '1px solid var(--border-color)', padding: '0.5rem', display: 'flex', gap: '0.5rem' }}>
+        {[1, 2, 3, 4, 5, 6].map(i => <Skeleton key={i} width="32px" height="32px" borderRadius="4px" />)}
+      </div>
+      <div className="lexical-editor-content" style={{ padding: '2rem' }}>
+        <Skeleton width="60%" height="2rem" style={{ marginBottom: '2rem' }} />
+        <Skeleton width="100%" height="1rem" style={{ marginBottom: '1rem' }} />
+        <Skeleton width="100%" height="1rem" style={{ marginBottom: '1rem' }} />
+        <Skeleton width="90%" height="1rem" style={{ marginBottom: '1rem' }} />
+        <Skeleton width="100%" height="1rem" style={{ marginBottom: '1rem' }} />
+        <Skeleton width="40%" height="1rem" />
+      </div>
+    </div>
+  </div>
+));
+
 /**
  * @component Editor (Lexical Edition)
  * @description Advanced Rich Text Editor powered by Meta's Lexical Engine.
- * Seamlessly integrates with the existing Socket.io backend logic.
  */
 const Editor = () => {
   const { id } = useParams();
@@ -69,11 +101,10 @@ const Editor = () => {
   const [error, setError] = useState(null);
   const [socket, setSocket] = useState(null);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
-  const [activeUsers, setActiveUsers] = useState([]);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [documentContent, setDocumentContent] = useState(null); 
-  const [editorInstance, setEditorInstance] = useState(null); // 🚀 Capture instance for header actions
+  const [editorInstance, setEditorInstance] = useState(null); 
 
   // 1. Lexical Configuration
   const initialConfig = useMemo(() => ({
@@ -94,21 +125,17 @@ const Editor = () => {
     });
     setSocket(s);
 
-    // 🚀 Handle Reconnection: Ensure user re-joins the room after a drop
     s.on('connect', () => {
       if (id) s.emit('get-document', id);
     });
 
-    
     s.on('load-document', (content) => {
-      // 🚀 Senior Fix: Store in holding area and stop loading
       setDocumentContent(content);
       setIsLoading(false);
     });
 
     s.on('connect_error', (err) => {
       console.error('Socket connection error:', err);
-      // If unauthorized, redirect to login
       if (err.message?.includes('unauthorized') || err.message?.includes('401')) {
         navigate('/login');
       }
@@ -120,19 +147,18 @@ const Editor = () => {
       setDoc(prev => prev ? { ...prev, title: newTitle } : prev);
     });
 
-    // 🚀 SAFETY TIMEOUT: Don't stay in infinite loading
     const safetyTimeout = setTimeout(() => {
       if (isLoading) {
         setIsLoading(false);
         setError('Document taking too long to load. Please refresh.');
       }
-    }, 5000);
+    }, 8000); // Increased for slower networks
 
     return () => {
       s.disconnect();
       clearTimeout(safetyTimeout);
     };
-  }, [id]);
+  }, [id, navigate]); // Removed isLoading from deps to avoid re-triggering
 
   const fetchDoc = useCallback(async () => {
     try {
@@ -140,14 +166,13 @@ const Editor = () => {
       if (response.success) setDoc(response.data);
     } catch (err) {
       console.error('Fetch error:', err);
-      // If unauthorized, redirect to login
       if (err.status === 401 || err.message?.includes('401')) {
         navigate('/login');
         return;
       }
       setError('Failed to fetch document metadata.');
     }
-  }, [id]);
+  }, [id, navigate]);
 
   useEffect(() => { fetchDoc(); }, [fetchDoc]);
 
@@ -161,7 +186,7 @@ const Editor = () => {
 
       await documentApi.updateDoc(id, { 
         title: doc?.title,
-        content: stateString // 🚀 Save as JSON String
+        content: stateString 
       });
       setError(null);
     } catch (err) {
@@ -172,9 +197,6 @@ const Editor = () => {
     }
   };
 
-  // ==========================================
-  // EXPORT LOGIC (RESTORED)
-  // ==========================================
   const exportPDF = () => {
     if (!editorInstance) return;
 
@@ -231,7 +253,6 @@ const Editor = () => {
             const file = items[i].getAsFile();
             const reader = new FileReader();
             reader.onload = (event) => {
-              // 🚀 FIX: Use Lexical's command system for robust injection
               editorInstance.dispatchCommand(INSERT_IMAGE_COMMAND, {
                 src: event.target.result,
                 altText: 'Pasted Image'
@@ -246,12 +267,12 @@ const Editor = () => {
     return () => window.removeEventListener('paste', handlePaste);
   }, [editorInstance]);
 
-  if (isLoading) return <Loader fullScreen />;
+  if (isLoading) return <EditorSkeleton />;
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
       <div className="editor-container animate-fade-in">
-        {/* HEADER SECTION (Same UI) */}
+        {/* HEADER SECTION */}
         <div className="editor-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '50%' }}>
             <button className="icon-btn" onClick={() => navigate('/dashboard')}>
@@ -264,7 +285,6 @@ const Editor = () => {
               onChange={(e) => {
                 const newTitle = e.target.value;
                 setDoc({...doc, title: newTitle});
-                // 🚀 Sync title in real-time
                 if (socket) socket.emit('update-title', newTitle);
               }}
               placeholder="Document Title"
@@ -273,11 +293,11 @@ const Editor = () => {
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <span className="save-status sync-badge">
+              <Sparkles size={12} className={isSaving || isSyncing ? 'spinning' : ''} />
               {isSaving || isSyncing ? 'Syncing...' : 'Synced'}
             </span>
             
             <div className="editor-actions-desktop">
-              {/* Download Dropdown */}
               <div className="download-dropdown-container">
                 <Button 
                   variant="secondary" 
@@ -310,7 +330,7 @@ const Editor = () => {
               <Button variant="secondary" onClick={() => setIsShareModalOpen(true)}>
                 <Share2 size={16} /> Share
               </Button>
-              <Button onClick={handleSave} isLoading={isSaving}>
+              <Button onClick={handleSave} isLoading={isSaving} className="glow-on-hover">
                 <Save size={16} /> Save
               </Button>
             </div>
@@ -332,7 +352,6 @@ const Editor = () => {
           <EditorCapturePlugin 
             onEditorReady={(editor) => {
               setEditorInstance(editor);
-              // 🚀 Register Image Command Listener
               editor.registerCommand(
                 INSERT_IMAGE_COMMAND,
                 (payload) => {
@@ -351,7 +370,6 @@ const Editor = () => {
             }} 
           />
 
-          {/* PLUGINS */}
           <HistoryPlugin />
           <ListPlugin />
           <LinkPlugin />
@@ -360,7 +378,7 @@ const Editor = () => {
           <SocketSyncPlugin 
             socket={socket} 
             docId={id} 
-            initialContent={documentContent} // 🚀 Pass holding data to plugin
+            initialContent={documentContent} 
             isOnline={isOnline}
             onSyncStatusChange={setIsSyncing}
           />
@@ -383,9 +401,6 @@ const Editor = () => {
   );
 };
 
-/**
- * 🚀 HELPER: Captures the editor instance from Lexical context
- */
 const EditorCapturePlugin = ({ onEditorReady }) => {
   const [editor] = useLexicalComposerContext();
   useEffect(() => {
@@ -395,3 +410,4 @@ const EditorCapturePlugin = ({ onEditorReady }) => {
 };
 
 export default Editor;
+

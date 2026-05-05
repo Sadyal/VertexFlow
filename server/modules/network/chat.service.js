@@ -30,6 +30,15 @@ export const sendMessageService = async (senderId, recipientId, content) => {
     content: content.trim()
   });
 
+  // ⚡ DENORMALIZATION: Update Connection with last message for instant retrieval
+  Connection.findByIdAndUpdate(areFriends._id, {
+    lastMessage: {
+      content: content.trim(),
+      sender: senderId,
+      createdAt: message.createdAt
+    }
+  }, { returnDocument: 'before' }).catch(err => console.error("❌ Failed to update lastMessage in Connection:", err));
+
   return message;
 };
 

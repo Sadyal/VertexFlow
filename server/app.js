@@ -28,11 +28,8 @@ const isProd = process.env.NODE_ENV === "production";
 /**
  * 🔐 SECURITY HEADERS
  */
-app.use(helmet());
-app.use(globalLimiter); // 🚀 Apply to all routes
-
 /**
- * 🌐 CORS CONFIG (MOVE BEFORE ROUTES)
+ * 🌐 CORS CONFIG (CRITICAL: MUST BE BEFORE RATE LIMITER)
  */
 const allowedOrigins = ["http://localhost:5173"];
 
@@ -55,9 +52,16 @@ app.use(
 );
 
 /**
- * 📦 BODY PARSING
+ * 🔐 SECURITY HEADERS & RATE LIMITING
  */
-app.use(express.json({ limit: "10kb" }));
+app.use(helmet());
+app.use(globalLimiter); // 🚀 Apply to all routes
+
+
+/**
+ * 📦 BODY PARSING
+ * Note: Body parsing is handled at the router level for granular security limits.
+ */
 
 /**
  * 🍪 COOKIE PARSER

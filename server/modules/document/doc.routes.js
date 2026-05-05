@@ -17,6 +17,7 @@ const router = express.Router();
  * 🔐 Global auth (required)
  */
 router.use(authMiddleware);
+router.use(express.json({ limit: "10kb" }));
 
 /**
  * 📄 DOCUMENT ROUTES

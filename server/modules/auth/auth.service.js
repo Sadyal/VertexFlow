@@ -71,11 +71,11 @@ export const registerUser = async ({ name, email, password }) => {
     isAccountVerified: false,
   });
 
-  await sendEmail({
+  sendEmail({
     to: user.email,
     subject: "Verify Your Account",
     html: generateVerifyEmailTemplate(otp, user.email),
-  });
+  }).catch((err) => console.error("Registration email failed:", err));
 
   // 🔐 Issue tokens immediately (optional UX improvement)
   const accessToken = generateAccessToken(user._id);
@@ -216,11 +216,11 @@ export const sendVerifyOtpService = async (userId) => {
 
   await user.save();
 
-  await sendEmail({
+  sendEmail({
     to: user.email,
     subject: "Verify Your Account",
     html: generateVerifyEmailTemplate(otp, user.email),
-  });
+  }).catch((err) => console.error("OTP resend email failed:", err));
 
   return { message: "OTP sent successfully" };
 };
@@ -249,14 +249,6 @@ export const verifyEmailService = async ({ email, otp }) => {
     String(user.verifyOtp).trim() === String(otp).trim();
 
   const isExpired = Date.now() > user.verifyOtpExpireAt;
-
-  // 🔹 Debug (optional - remove later)
-  console.log({
-    dbOtp: user.verifyOtp,
-    inputOtp: otp,
-    isOtpValid,
-    isExpired,
-  });
 
   if (!isOtpValid || isExpired) {
     throw createError("Invalid or expired OTP", 400);
@@ -298,7 +290,7 @@ export const sendResetOtpService = async (email) => {
 
   await user.save();
 
-  await sendEmail({
+  sendEmail({
     to: user.email,
     subject: "Password Reset OTP",
     html: `
@@ -306,7 +298,7 @@ export const sendResetOtpService = async (email) => {
       <p>Your OTP is: <b>${otp}</b></p>
       <p>This OTP is valid for 15 minutes.</p>
     `,
-  });
+  }).catch((err) => console.error("Reset password email failed:", err));
 
   return { message: "Reset OTP sent successfully" };
 };
@@ -347,16 +339,6 @@ export const resetPasswordService = async ({
 
   const isExpired = Date.now() > user.resetOtpExpireAt;
 
-  // ✅ optional debug (remove in production)
-  console.log({
-    enteredOtp: otp,
-    storedOtp: user.resetOtp,
-    expireAt: user.resetOtpExpireAt,
-    now: Date.now(),
-    isOtpValid,
-    isExpired,
-  });
-
   if (!isOtpValid || isExpired) {
     throw createError("Invalid or expired OTP", 400);
   }
@@ -378,12 +360,17 @@ export const resetPasswordService = async ({
  * UPDATE PROFILE (NAME + AVATAR)
  */
 export const updateProfileService = async (userId, { name, avatar }) => {
-  const user = await userModel.findById(userId);
+  const updateData = {};
+  if (name) updateData.name = name.trim();
+  if (avatar !== undefined) updateData.avatar = avatar;
+
+  const user = await userModel.findByIdAndUpdate(
+    userId,
+    { $set: updateData },
+    { returnDocument: 'after', runValidators: true }
+  );
+
   if (!user) throw createError("User not found", 404);
 
-  if (name) user.name = name.trim();
-  if (avatar !== undefined) user.avatar = avatar;
-
-  await user.save();
   return sanitizeUser(user);
 };

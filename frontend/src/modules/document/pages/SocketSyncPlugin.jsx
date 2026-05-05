@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html';
-import { $getRoot, $insertNodes } from 'lexical';
+import { $getRoot } from 'lexical';
+import { $generateNodesFromDOM } from '@lexical/html';
 
 /**
  * @component SocketSyncPlugin
@@ -11,25 +11,39 @@ import { $getRoot, $insertNodes } from 'lexical';
 export default function SocketSyncPlugin({ socket, docId, initialContent, isOnline, onSyncStatusChange }) {
   const [editor] = useLexicalComposerContext();
   const isUpdatingRef = useRef(false);
-  const hasInitializedRef = useRef(false); // 🚀 Ensure we only load initial content once
+  const hasInitializedRef = useRef(false);
   const saveTimeoutRef = useRef(null);
-  const lastContentRef = useRef('');
+  const lastContentRef = useRef(null);
+  const pendingStateRef = useRef(null);
+
+  // 🚀 Helper to flush any pending save to the DB
+  const flushSave = useCallback(() => {
+    if (pendingStateRef.current && socket && isOnline) {
+      const stateString = typeof pendingStateRef.current === 'string' 
+        ? pendingStateRef.current 
+        : JSON.stringify(pendingStateRef.current);
+        
+      socket.emit('save-document', stateString);
+      pendingStateRef.current = null;
+      onSyncStatusChange(false);
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    }
+  }, [socket, isOnline, onSyncStatusChange]);
 
   useEffect(() => {
     if (!editor || hasInitializedRef.current) return;
 
-    // 🚀 INITIAL LOAD: If we have content from the server, push it in now
-    if (initialContent !== null && initialContent !== '') {
+    if (initialContent !== null && initialContent !== undefined) {
       try {
-        // Try to parse if it's a string, or use as is if it's already an object
-        const contentToParse = typeof initialContent === 'string' 
+        const contentToParse = typeof initialContent === 'string' && initialContent.startsWith('{')
           ? JSON.parse(initialContent) 
           : initialContent;
           
         const parsedState = editor.parseEditorState(contentToParse);
         editor.setEditorState(parsedState);
+        lastContentRef.current = JSON.stringify(parsedState.toJSON());
       } catch (e) {
-        // Fallback to HTML (Legacy Support)
+        // Fallback to HTML
         editor.update(() => {
           const parser = new DOMParser();
           const dom = parser.parseFromString(initialContent, 'text/html');
@@ -38,11 +52,9 @@ export default function SocketSyncPlugin({ socket, docId, initialContent, isOnli
           root.clear();
           root.append(...nodes);
         });
+        lastContentRef.current = initialContent;
       }
-      lastContentRef.current = initialContent;
       hasInitializedRef.current = true;
-    } else if (initialContent === '') {
-      hasInitializedRef.current = true; // Empty doc is initialized
     }
   }, [editor, initialContent]);
 
@@ -54,58 +66,59 @@ export default function SocketSyncPlugin({ socket, docId, initialContent, isOnli
       if (isUpdatingRef.current) return;
       
       const stateString = JSON.stringify(stateJSON);
-      if (stateString === JSON.stringify(lastContentRef.current)) return;
+      if (stateString === lastContentRef.current) return;
 
       isUpdatingRef.current = true;
-      lastContentRef.current = stateJSON;
+      lastContentRef.current = stateString;
 
       try {
         const parsedState = editor.parseEditorState(stateJSON);
-        // 🚀 Use a 'remote' tag to prevent the update listener from sending this back
         editor.setEditorState(parsedState, { tag: 'remote' });
       } catch (err) {
         console.error('Remote sync error:', err);
       } finally {
-        // Small buffer to ensure HMR or rapid typing doesn't break the lock
         setTimeout(() => {
           isUpdatingRef.current = false;
         }, 100);
       }
     };
 
-    // We no longer need load-document here because it's handled above
     socket.on('receive-changes', handleRemoteUpdate);
 
     // 📤 SEND CHANGES TO SOCKET
     const removeUpdateListener = editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves, tags }) => {
-      // 🚀 CRITICAL: If this update came from the socket (tagged 'remote'), do NOT send it back
       if (isUpdatingRef.current || tags.has('remote')) return;
       if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return;
 
       const stateJSON = editorState.toJSON();
       const stateString = JSON.stringify(stateJSON);
       
-      if (stateString === JSON.stringify(lastContentRef.current)) return;
+      if (stateString === lastContentRef.current) return;
       
-      lastContentRef.current = stateJSON;
+      lastContentRef.current = stateString;
+      pendingStateRef.current = stateJSON;
+      
+      // 🚀 Broadcast to others immediately
       socket.emit('send-changes', stateJSON);
 
       onSyncStatusChange(true);
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
       
-      saveTimeoutRef.current = setTimeout(() => {
-        // 🚀 Save JSON string to DB for 100% precision on refresh
-        socket.emit('save-document', stateString);
-        onSyncStatusChange(false);
-      }, 2000);
+      saveTimeoutRef.current = setTimeout(flushSave, 2000);
     });
 
+    // 🚀 Handle window close / tab switch
+    const handleBeforeUnload = () => flushSave();
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       socket.off('receive-changes', handleRemoteUpdate);
       removeUpdateListener();
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+      flushSave(); // 🚀 Force save on unmount
     };
-  }, [socket, editor, docId, onSyncStatusChange]);
+  }, [socket, editor, docId, onSyncStatusChange, isOnline, flushSave]);
 
   return null;
 }
+

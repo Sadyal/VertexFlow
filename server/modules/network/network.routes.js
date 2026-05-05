@@ -3,6 +3,7 @@ import * as networkController from './network.controller.js';
 import authMiddleware from '../../middleware/auth.middleware.js';
 
 const router = express.Router();
+router.use(express.json({ limit: "10kb" }));
 
 /**
  * @route GET /api/network/search
