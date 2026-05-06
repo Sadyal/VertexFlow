@@ -6,6 +6,7 @@ import helmet from "helmet";
 import authRoutes from "./modules/auth/auth.routes.js";
 import docRoutes from "./modules/document/doc.routes.js";
 import networkRoutes from "./modules/network/network.routes.js";
+import aiRoutes from "./modules/ai/ai.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
 import { globalLimiter } from "./middleware/rateLimiter.js";
 
@@ -95,6 +96,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/docs", docRoutes);
 app.use("/api/network", networkRoutes);
+app.use("/api/ai", aiRoutes);
 
 /**
  * ❌ 404 HANDLER

@@ -44,6 +44,7 @@ import { INSERT_IMAGE_COMMAND, $createImageNode } from './ImageNode.jsx';
 import { documentApi } from '../doc.api';
 import Button from '../../../components/common/Button';
 import Skeleton from '../../../components/common/Skeleton';
+import FloatingAIButton from '../../../components/ai/FloatingAIButton';
 import ShareModal from '../components/ShareModal';
 import DeleteModal from '../components/DeleteModal';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
@@ -203,14 +204,19 @@ const Editor = () => {
     editorInstance.read(() => {
       const htmlContent = $generateHtmlFromNodes(editorInstance, null);
       const tempElement = document.createElement('div');
-      tempElement.innerHTML = htmlContent;
-      tempElement.className = 'lexical-export-container';
-
+      
+      // 🚀 Force high-fidelity print styles for PDF
+      tempElement.innerHTML = `
+        <div class="pdf-export-wrapper" style="color: #000; background: #fff; padding: 40px; font-family: 'Arial', sans-serif;">
+          ${htmlContent}
+        </div>
+      `;
+      
       const opt = {
-        margin: [15, 15],
+        margin: [10, 10],
         filename: `${doc?.title || 'Document'}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
+        image: { type: 'jpeg', quality: 1.0 },
+        html2canvas: { scale: 3, useCORS: true, letterRendering: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
 
@@ -225,9 +231,35 @@ const Editor = () => {
       const content = $generateHtmlFromNodes(editorInstance, null);
       const header = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-        <head><meta charset='utf-8'><title>${doc?.title || 'Document'}</title>
-        <style>body { font-family: 'Arial', sans-serif; } table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #000; padding: 5px; }</style>
-        </head><body>${content}</body></html>
+        <head>
+          <meta charset='utf-8'>
+          <title>${doc?.title || 'Document'}</title>
+          <style>
+            body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #000; }
+            h1 { color: #1a1a1a; font-size: 24pt; font-weight: bold; margin-bottom: 15pt; }
+            h2 { color: #333; font-size: 18pt; font-weight: bold; margin-top: 20pt; margin-bottom: 10pt; }
+            
+            /* 🚀 Force Word to recognize Lexical paragraphs */
+            p, div, .editor-paragraph { 
+              margin: 0 0 12pt 0; 
+              display: block;
+              mso-para-margin-bottom: 12pt;
+              mso-line-height-rule: exactly;
+            }
+            
+            strong, .editor-text-bold { font-weight: bold; }
+            em, .editor-text-italic { font-style: italic; }
+            u, .editor-text-underline { text-decoration: underline; }
+            
+            table { border-collapse: collapse; width: 100%; margin: 15pt 0; }
+            th, td { border: 1px solid #ddd; padding: 8pt; text-align: left; }
+            th { background-color: #f8f9fa; font-weight: bold; }
+            
+            .editor-image { max-width: 100%; height: auto; margin: 15pt auto; display: block; }
+          </style>
+        </head>
+        <body>${content}</body>
+        </html>
       `;
 
       const blob = new Blob(['\ufeff', header], { type: 'application/msword' });
@@ -397,6 +429,9 @@ const Editor = () => {
           />
         )}
       </div>
+
+      {/* Floating AI Assistant (Lazy Loaded + Portal) */}
+      <FloatingAIButton editorInstance={editorInstance} />
     </LexicalComposer>
   );
 };

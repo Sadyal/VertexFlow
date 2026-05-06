@@ -81,9 +81,7 @@ export const AuthProvider = ({ children }) => {
         handleSetUser(null);
       }
     } catch (err) {
-      console.error('❌ AuthContext: Session check failed', err);
       // 🚀 ROBUST ERROR CHECK:
-      // Handle both structured error bodies { status: 401 } and axios errors { response: { status: 401 } }
       const isUnauthorized = 
         err?.status === 401 || 
         err?.response?.status === 401 || 
@@ -91,10 +89,10 @@ export const AuthProvider = ({ children }) => {
         err?.message?.toLowerCase().includes('token missing');
 
       if (isUnauthorized) {
-        console.warn('📡 AuthContext: Unauthorized. Clearing session.');
+        console.log('📡 AuthContext: No active session (Unauthorized).');
         handleSetUser(null);
       } else {
-        console.warn('📡 AuthContext: Non-auth error. Keeping cached user if exists.');
+        console.warn('⚠️ AuthContext: Non-auth error or network issue during session check.', err?.message || 'Unknown error');
       }
     } finally {
       setIsInitializing(false);
