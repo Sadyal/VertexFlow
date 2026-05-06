@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { authApi } from '../modules/auth/auth.api';
+import { storage } from '../utils/storage';
 import Loader from '../components/common/Loader';
 
 /**
@@ -30,32 +31,19 @@ export const AuthProvider = ({ children }) => {
   // ==========================================
   // STATE MANAGEMENT
   // ==========================================
-  const [user, setUser] = useState(() => {
-    try {
-      const savedUser = localStorage.getItem('user');
-      return savedUser ? JSON.parse(savedUser) : null;
-    } catch (e) {
-      return null;
-    }
-  });
-  const [userAvatar, setUserAvatar] = useState(() => {
-    return localStorage.getItem('user_avatar');
-  });
-  const [isInitializing, setIsInitializing] = useState(() => {
-    // ⚡ INSTANT BOOT: If we have a cached user, don't show the global loader.
-    // We will verify the session in the background.
-    return !localStorage.getItem('user');
-  });
+  const [user, setUser] = useState(() => storage.get('user', null));
+  const [userAvatar, setUserAvatar] = useState(() => storage.get('user_avatar', null));
+  const [isInitializing, setIsInitializing] = useState(() => !localStorage.getItem('user'));
 
   // Helper to update user state and persistence
   const handleSetUser = (userData) => {
     setUser((prev) => {
       const nextUser = typeof userData === 'function' ? userData(prev) : userData;
       if (nextUser) {
-        localStorage.setItem('user', JSON.stringify(nextUser));
+        storage.set('user', nextUser);
       } else {
-        localStorage.removeItem('user');
-        localStorage.removeItem('user_avatar');
+        storage.remove('user');
+        storage.remove('user_avatar');
       }
       return nextUser;
     });
@@ -66,14 +54,14 @@ export const AuthProvider = ({ children }) => {
     if (user) {
       if (user.avatar) {
         setUserAvatar(user.avatar);
-        localStorage.setItem('user_avatar', user.avatar);
+        storage.set('user_avatar', user.avatar);
       } else {
         setUserAvatar(null);
-        localStorage.removeItem('user_avatar');
+        storage.remove('user_avatar');
       }
     } else {
       setUserAvatar(null);
-      localStorage.removeItem('user_avatar');
+      storage.remove('user_avatar');
     }
   }, [user]);
 
@@ -82,18 +70,31 @@ export const AuthProvider = ({ children }) => {
   // ==========================================
   const checkSession = async () => {
     try {
+      console.log('📡 AuthContext: Checking session...');
       const response = await authApi.getMe();
       if (response.success) {
+        console.log('✅ AuthContext: Session valid', response.data.user?.email || '');
         const userData = response.data.user || response.data;
         handleSetUser(userData);
       } else {
+        console.warn('⚠️ AuthContext: Session invalid (success false)');
         handleSetUser(null);
       }
     } catch (err) {
-      // Only clear user if it's an authentication error (401)
-      // Otherwise keep the cached user to handle intermittent network issues
-      if (err?.status === 401 || err?.message?.toLowerCase().includes('unauthorized')) {
+      console.error('❌ AuthContext: Session check failed', err);
+      // 🚀 ROBUST ERROR CHECK:
+      // Handle both structured error bodies { status: 401 } and axios errors { response: { status: 401 } }
+      const isUnauthorized = 
+        err?.status === 401 || 
+        err?.response?.status === 401 || 
+        err?.message?.toLowerCase().includes('unauthorized') ||
+        err?.message?.toLowerCase().includes('token missing');
+
+      if (isUnauthorized) {
+        console.warn('📡 AuthContext: Unauthorized. Clearing session.');
         handleSetUser(null);
+      } else {
+        console.warn('📡 AuthContext: Non-auth error. Keeping cached user if exists.');
       }
     } finally {
       setIsInitializing(false);
@@ -110,7 +111,20 @@ export const AuthProvider = ({ children }) => {
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    
+    // 🖥️ Sync logout across multiple tabs
+    const handleStorageChange = (e) => {
+      if (e.key === 'user' && !e.newValue) {
+        console.warn('📡 Session cleared in another tab. Logging out...');
+        setUser(null);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   const updateAvatar = (newAvatar) => {

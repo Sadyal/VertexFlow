@@ -49,8 +49,9 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
         await axios.post(
-          (import.meta.env.VITE_API_URL || 'http://localhost:4000') + API_ENDPOINTS.REFRESH_TOKEN,
+          `${baseUrl}${API_ENDPOINTS.REFRESH_TOKEN}`,
           {},
           { withCredentials: true }
         );

@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { documentApi } from './doc.api';
 import { useAuth } from '../../context/AuthContext';
+import { storage } from '../../utils/storage';
 
 /**
  * @hook useDocuments
@@ -15,15 +16,7 @@ export const useDocuments = () => {
   // ==========================================
   // STATE MANAGEMENT
   // ==========================================
-  const [docs, setDocs] = useState(() => {
-    if (!userId) return [];
-    try {
-      const cached = localStorage.getItem(CACHE_KEY);
-      return cached ? JSON.parse(cached) : [];
-    } catch (e) {
-      return [];
-    }
-  });
+  const [docs, setDocs] = useState(() => storage.get(CACHE_KEY, []));
   
   const [isLoading, setIsLoading] = useState(!docs.length); 
   const [error, setError] = useState(null);
@@ -53,7 +46,7 @@ export const useDocuments = () => {
       if (response.success) {
         setDocs(response.data);
         if (userId) {
-          localStorage.setItem(CACHE_KEY, JSON.stringify(response.data));
+          storage.set(CACHE_KEY, response.data);
         }
       }
     } catch (err) {
@@ -80,7 +73,7 @@ export const useDocuments = () => {
         };
         setDocs(prev => {
           const updated = [newDoc, ...prev];
-          localStorage.setItem(CACHE_KEY, JSON.stringify(updated));
+          storage.set(CACHE_KEY, updated);
           return updated;
         });
         return newDoc;
@@ -100,7 +93,7 @@ export const useDocuments = () => {
       if (response.success) {
         setDocs(prev => {
           const updated = prev.filter(doc => doc._id !== id && doc.id !== id);
-          localStorage.setItem(CACHE_KEY, JSON.stringify(updated));
+          storage.set(CACHE_KEY, updated);
           return updated;
         });
         return true;
@@ -122,7 +115,7 @@ export const useDocuments = () => {
           const updated = prev.map(doc => 
             (doc._id === id || doc.id === id) ? { ...doc, title: newTitle } : doc
           );
-          localStorage.setItem(CACHE_KEY, JSON.stringify(updated));
+          storage.set(CACHE_KEY, updated);
           return updated;
         });
         return true;

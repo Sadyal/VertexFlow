@@ -37,10 +37,11 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const success = await login(formData);
+    // 🚀 STABILITY: The navigation is handled by the useEffect watching isAuthenticated
+    // to avoid redundant navigations and potential race conditions.
     if (success) {
-      navigate(ROUTES.DASHBOARD);
-    } else if (error && error.includes('verify')) {
-      // The hook might have set the error to 'Please verify your account first'
+      console.log('✅ Login successful, waiting for redirect...');
+    } else if (error && (error.toLowerCase().includes('verify') || error.toLowerCase().includes('account first'))) {
       navigate(ROUTES.VERIFY_EMAIL);
     }
   };
