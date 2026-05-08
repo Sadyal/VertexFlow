@@ -6,7 +6,7 @@ import { ROUTES } from '../../utils/constants';
 import Loader from './Loader';
 
 const ProtectedRoute = () => {
-  const { isAuthenticated, isInitializing } = useContext(AuthContext);
+  const { isAuthenticated, isInitializing, isAdmin } = useContext(AuthContext);
 
   if (isInitializing) {
     return <Loader fullScreen />;
@@ -14,6 +14,11 @@ const ProtectedRoute = () => {
 
   if (!isAuthenticated) {
     return <Navigate to={ROUTES.LOGIN} replace />;
+  }
+
+  // If Admin is trying to access normal user routes, redirect to Admin Panel
+  if (isAdmin) {
+    return <Navigate to="/admin" replace />;
   }
 
   return <Outlet />;

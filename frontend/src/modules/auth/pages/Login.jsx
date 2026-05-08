@@ -17,14 +17,18 @@ const Login = () => {
   // ==========================================
   const [formData, setFormData] = useState({ email: '', password: '' });
   const { login, isLoading, error } = useLogin();
-  const { isAuthenticated, setUser } = useContext(AuthContext);
+  const { isAuthenticated, user, isAdmin } = useContext(AuthContext);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate(ROUTES.DASHBOARD, { replace: true });
+    if (isAuthenticated && user) {
+      if (isAdmin) {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate(ROUTES.DASHBOARD, { replace: true });
+      }
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user, isAdmin, navigate]);
 
   // ==========================================
   // EVENT HANDLERS

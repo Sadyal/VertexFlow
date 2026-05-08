@@ -34,6 +34,11 @@
   --glass-panel-bg: rgba(22, 22, 34, 0.4);
   --glass-border: rgba(255, 255, 255, 0.08);
   
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.04);
+  --glass-overlay: rgba(0, 0, 0, 0.4);
+  
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 24px;
@@ -50,41 +55,46 @@
 
 [data-theme='light'] {
   /* ==========================================
-     LIGHT THEME VARIABLES 
+     LIGHT THEME VARIABLES - STUDIO ELEVATION
      ========================================== */
-  --bg-primary: #fcfcfd;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #f8fafc;
+  --bg-primary: #f0f2f5;      /* Subtle off-white base */
+  --bg-secondary: #ffffff;    /* Pure white for elevated panels */
+  --bg-tertiary: #e2e8f0;     /* Grey for deeper nesting */
   
   --accent-primary: #4f46e5;
   --accent-secondary: #7c3aed;
   --accent-hover: #4338ca;
-  --accent-glow: rgba(79, 70, 229, 0.3);
-  --accent-light: rgba(79, 70, 229, 0.05);
+  --accent-glow: rgba(79, 70, 229, 0.4);
+  --accent-light: rgba(79, 70, 229, 0.12);
   
   --success: #059669;
   --warning: #d97706;
   --error: #dc2626;
   
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-primary: #0f172a;    /* Deep slate for readability */
+  --text-secondary: #334155;
+  --text-muted: #64748b;
   
-  --border-color: rgba(0, 0, 0, 0.06);
-  --border-highlight: rgba(0, 0, 0, 0.1);
+  --border-color: rgba(0, 0, 0, 0.1);
+  --border-highlight: rgba(0, 0, 0, 0.15);
   
-  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 25px 50px -12px rgba(0, 0, 0, 0.12);
-  --shadow-glow: 0 0 15px rgba(79, 70, 229, 0.1);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.12);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 20px 40px rgba(0, 0, 0, 0.15);
+  --shadow-glow: 0 0 20px rgba(79, 70, 229, 0.2);
   
-  --glass-bg: rgba(255, 255, 255, 0.85);
-  --glass-panel-bg: rgba(248, 250, 252, 0.7);
-  --glass-border: rgba(0, 0, 0, 0.05);
+  --glass-bg: rgba(255, 255, 255, 0.95);
+  --glass-panel-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.08);
   
-  --mesh-grad-1: radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.05) 0px, transparent 50%);
-  --mesh-grad-2: radial-gradient(at 100% 0%, rgba(124, 58, 237, 0.04) 0px, transparent 50%);
-  --mesh-grad-3: radial-gradient(at 50% 100%, rgba(5, 150, 105, 0.02) 0px, transparent 50%);
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --border-subtle: rgba(0, 0, 0, 0.05);
+  --glass-overlay: rgba(0, 0, 0, 0.12);
+  
+  --mesh-grad-1: radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.1) 0px, transparent 50%);
+  --mesh-grad-2: radial-gradient(at 100% 0%, rgba(124, 58, 237, 0.08) 0px, transparent 50%);
+  --mesh-grad-3: radial-gradient(at 50% 100%, rgba(5, 150, 105, 0.06) 0px, transparent 50%);
 }
 
 /* Global Reset and Typography */
@@ -92,6 +102,27 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-highlight) transparent;
+}
+
+/* Custom Scrollbar for Chrome/Safari */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-highlight);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 body {

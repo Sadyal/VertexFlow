@@ -22,6 +22,15 @@ const VerifyEmail = lazy(() => import('../modules/auth/pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('../modules/auth/pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('../modules/auth/pages/ResetPassword'));
 
+// Admin Imports (Code Split)
+import AdminRoute from '../components/common/AdminRoute';
+const AdminLayout = lazy(() => import('../modules/admin/layout/AdminLayout'));
+const AdminDashboard = lazy(() => import('../modules/admin/pages/AdminDashboard'));
+const AdminUsers = lazy(() => import('../modules/admin/pages/AdminUsers'));
+const AdminDocs = lazy(() => import('../modules/admin/pages/AdminDocs'));
+const AdminAnalytics = lazy(() => import('../modules/admin/pages/AdminAnalytics'));
+const AdminSettings = lazy(() => import('../modules/admin/pages/AdminSettings'));
+
 const AppRoutes = () => {
   const location = useLocation();
 
@@ -46,6 +55,17 @@ const AppRoutes = () => {
             <Route path="/docs/:id" element={<Editor />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/network" element={<Network />} />
+          </Route>
+        </Route>
+
+        {/* 🛡️ ADMIN ROUTES (Strictly Isolated & Lazy Loaded) */}
+        <Route element={<AdminRoute />}>
+          <Route path="/admin" element={<AdminLayout />}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="documents" element={<AdminDocs />} />
+            <Route path="analytics" element={<AdminAnalytics />} />
+            <Route path="settings" element={<AdminSettings />} />
           </Route>
         </Route>
       </Routes>

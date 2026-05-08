@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
+import compression from "compression";
 
 import authRoutes from "./modules/auth/auth.routes.js";
 import docRoutes from "./modules/document/doc.routes.js";
@@ -9,8 +10,12 @@ import networkRoutes from "./modules/network/network.routes.js";
 import aiRoutes from "./modules/ai/ai.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
 import { globalLimiter } from "./middleware/rateLimiter.js";
+import maintenanceMiddleware from "./middleware/maintenance.middleware.js";
 
 const app = express();
+
+// 🚀 PERFORMANCE: Compress all responses
+app.use(compression());
 
 /**
  * 📡 PROXY TRUST
@@ -90,13 +95,27 @@ app.get("/", (req, res) => {
   });
 });
 
+import trackingMiddleware from "./middleware/tracking.middleware.js";
+import adminRoutes from "./modules/admin/admin.routes.js";
+
+/**
+ * 📊 GLOBAL TRACKING
+ * Asynchronous tracking of API usage
+ */
+app.use(trackingMiddleware);
+
 /**
  * 🚀 ROUTES
  */
 app.use("/api/auth", authRoutes);
+
+// 🛠️ PLATFORM SECURITY: Maintenance Enforcement
+app.use(maintenanceMiddleware);
+
 app.use("/api/docs", docRoutes);
 app.use("/api/network", networkRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/api/admin", adminRoutes);
 
 /**
  * ❌ 404 HANDLER

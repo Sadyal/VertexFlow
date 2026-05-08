@@ -57,7 +57,7 @@
 }
 
 .profile-nav-btn:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--bg-hover);
   color: var(--text-primary);
 }
 
@@ -173,7 +173,7 @@
 
 .pro-stat-box {
   flex: 1;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
   border: 1px solid var(--border-color);
   padding: 1.25rem;
   border-radius: var(--radius-md);
@@ -258,7 +258,7 @@
 
 .pro-input {
   width: 100%;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--bg-hover);
   border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 0.875rem 1.25rem 0.875rem 3.25rem;
@@ -287,7 +287,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.25rem;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-hover);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
   margin-bottom: 1rem;
@@ -303,7 +303,7 @@
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-active);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -356,7 +356,7 @@
 .heatmap-cell {
   aspect-ratio: 1;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
 }
 
 .heatmap-cell.active { background: rgba(var(--accent-primary-rgb), 0.2); }

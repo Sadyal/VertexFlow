@@ -137,6 +137,7 @@ export const AuthProvider = ({ children }) => {
       user, 
       userAvatar,
       isAuthenticated: !!user, 
+      isAdmin: user?.role === 'admin',
       isInitializing, 
       setUser: handleSetUser,
       updateAvatar,

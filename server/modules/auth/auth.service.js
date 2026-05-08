@@ -25,6 +25,7 @@ const sanitizeUser = (user) => ({
   name: user.name,
   email: user.email,
   avatar: user.avatar,
+  role: user.role,
 });
 
 /**
