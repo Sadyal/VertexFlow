@@ -6,7 +6,7 @@ import { Sparkles, FileText, Zap, Shield, Users, ArrowRight } from 'lucide-react
 const Home = () => {
   return (
     <div className="landing-page-wrapper" style={{ overflowX: 'hidden' }}>
-      {/* 🚀 HERO SECTION */}
+      {/* 🚀 HERO SECTION e*/}
       <section className="hero-section container flex-column flex-center" style={{ minHeight: '100vh', position: 'relative', paddingTop: '4rem' }}>
         <div className="hero-glow animate-fade-in" style={{ 
           position: 'absolute', 
