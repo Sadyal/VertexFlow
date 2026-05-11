@@ -146,10 +146,13 @@ export const getFriendsService = async (userId) => {
     status: 'accepted'
   }).populate('requester recipient', 'name email avatar').lean();
 
-  if (!connections.length) return [];
+  // 🛡️ SAFETY FILTER: Remove connections with deleted users to prevent Null crashes
+  const validConnections = connections.filter(conn => conn.requester && conn.recipient);
+
+  if (!validConnections.length) return [];
 
   // 2. Extract friend objects and IDs
-  const friends = connections.map(conn => {
+  const friends = validConnections.map(conn => {
     const friend = conn.requester._id.toString() === userId.toString() 
       ? conn.recipient 
       : conn.requester;
