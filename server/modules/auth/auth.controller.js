@@ -69,13 +69,14 @@ export const login = async (req, res, next) => {
  */
 export const logout = async (req, res, next) => {
   try {
-    // 🔐 Invalidate session in DB (Non-blocking background task)
+    // 🔐 Try to invalidate session in DB if userId is present
     if (req.userId) {
       userModel.findByIdAndUpdate(req.userId, {
         refreshToken: "",
-      }, { returnDocument: 'before' }).catch(err => console.error("Logout DB error:", err));
+      }).catch(err => console.error("Logout DB cleanup skipped:", err.message));
     }
 
+    // 🧹 ALWAYS clear cookies regardless of token validity
     res.clearCookie("accessToken", accessTokenOptions);
     res.clearCookie("refreshToken", refreshTokenOptions);
 

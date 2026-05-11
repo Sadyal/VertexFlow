@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { 
   User, Mail, Camera, Save, Shield, Bell, 
   CreditCard, Activity, LogOut, CheckCircle, 
@@ -25,6 +25,14 @@ const Profile = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [stats, setStats] = useState({ documents: 0, shared: 0 });
+
+  // ⚡ PERFORMANCE FIX: Memoize random heatmap data to prevent CPU spikes on re-render
+  const heatmapData = useMemo(() => {
+    return [...Array(90)].map(() => ({
+      val: Math.random() > 0.7,
+      intensity: Math.random() > 0.5
+    }));
+  }, []);
 
   useEffect(() => {
     if (user?.name) setName(user.name);
@@ -185,8 +193,11 @@ const Profile = () => {
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Last 30 days</span>
           </div>
           <div className="heatmap-grid">
-            {[...Array(90)].map((_, i) => (
-              <div key={i} className={`heatmap-cell ${Math.random() > 0.7 ? (Math.random() > 0.5 ? 'very-active' : 'active') : ''}`} />
+            {heatmapData.map((cell, i) => (
+              <div 
+                key={i} 
+                className={`heatmap-cell ${cell.val ? (cell.intensity ? 'very-active' : 'active') : ''}`} 
+              />
             ))}
           </div>
         </div>

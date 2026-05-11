@@ -27,7 +27,12 @@ const largeParser = express.json({ limit: "2mb" });
  */
 router.post("/register", standardParser, authLimiter, register);
 router.post("/login", standardParser, authLimiter, login);
-router.post("/logout", authMiddleware, standardParser, logout);
+
+/**
+ * @route POST /api/auth/logout
+ * @desc Logout user (Always succeeds even if token is expired)
+ */
+router.post("/logout", standardParser, logout);
 
 /**
  * 👤 USER ROUTE
