@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { documentApi } from './doc.api';
 import { useAuth } from '../../context/AuthContext';
 import { storage } from '../../utils/storage';
+import { db } from '../../utils/db';
 
 /**
  * @hook useDocuments
@@ -96,6 +97,8 @@ export const useDocuments = () => {
           storage.set(CACHE_KEY, updated);
           return updated;
         });
+        // 🚀 PURGE CACHE: Remove content from IndexedDB too
+        db.deleteDocument(id);
         return true;
       }
     } catch (err) {

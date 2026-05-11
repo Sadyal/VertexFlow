@@ -49,6 +49,7 @@ import ShareModal from '../components/ShareModal';
 import DeleteModal from '../components/DeleteModal';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
 import html2pdf from 'html2pdf.js';
+import { db } from '../../../utils/db';
 import './EditorUI.css';
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
@@ -104,6 +105,7 @@ const Editor = () => {
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [documentContent, setDocumentContent] = useState(null); 
   const [editorInstance, setEditorInstance] = useState(null); 
 
@@ -133,7 +135,19 @@ const Editor = () => {
     s.on('load-document', (content) => {
       setDocumentContent(content);
       setIsLoading(false);
+      // 🚀 Cache to IndexedDB for next refresh
+      db.saveDocument(id, content);
     });
+
+    // 🚀 INDEXEDDB FAST-LOAD: Try to load from cache immediately
+    const loadFromCache = async () => {
+      const cachedContent = await db.getDocument(id);
+      if (cachedContent) {
+        setDocumentContent(cachedContent);
+        setIsLoading(false); // Render immediately if cache exists
+      }
+    };
+    loadFromCache();
 
     s.on('connect_error', (err) => {
       console.error('Socket connection error:', err);
@@ -323,12 +337,13 @@ const Editor = () => {
             />
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <span className="save-status sync-badge">
               <Sparkles size={12} className={isSaving || isSyncing ? 'spinning' : ''} />
               {isSaving || isSyncing ? 'Syncing...' : 'Synced'}
             </span>
             
+            {/* 🖥️ DESKTOP ACTIONS */}
             <div className="editor-actions-desktop">
               <div className="download-dropdown-container">
                 <Button 
@@ -365,6 +380,59 @@ const Editor = () => {
               <Button onClick={handleSave} isLoading={isSaving} className="glow-on-hover">
                 <Save size={16} /> Save
               </Button>
+            </div>
+
+            {/* 📱 MOBILE ACTIONS (MODERN COMPACT) */}
+            <div className="editor-actions-mobile">
+              <button 
+                className={`icon-btn ${isDownloadOpen ? 'active' : ''}`} 
+                onClick={() => {
+                  setIsDownloadOpen(!isDownloadOpen);
+                  setIsMoreMenuOpen(false); 
+                }}
+              >
+                <Download size={20} />
+              </button>
+              
+              <div style={{ position: 'relative' }}>
+                <button 
+                  className={`icon-btn ${isMoreMenuOpen ? 'active' : ''}`} 
+                  onClick={() => {
+                    setIsMoreMenuOpen(!isMoreMenuOpen);
+                    setIsDownloadOpen(false);
+                  }}
+                >
+                  <MoreVertical size={20} />
+                </button>
+                
+                {isMoreMenuOpen && (
+                  <div className="more-menu glass-panel animate-slide-up">
+                    <button className="more-menu-item" onClick={() => { handleSave(); setIsMoreMenuOpen(false); }}>
+                      <Save size={18} /> Save Changes
+                    </button>
+                    <button className="more-menu-item" onClick={() => { setIsShareModalOpen(true); setIsMoreMenuOpen(false); }}>
+                      <Share2 size={18} /> Share Doc
+                    </button>
+                    <button className="more-menu-item delete" onClick={() => { setIsMoreMenuOpen(false); setIsDeleteModalOpen(true); }}>
+                      <Trash2 size={18} /> Delete Doc
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile Download Menu Portal-style */}
+              {isDownloadOpen && (
+                <div className="download-menu mobile-download glass-panel animate-slide-up">
+                  <button className="download-menu-item" onClick={() => { exportPDF(); setIsDownloadOpen(false); }}>
+                    <span className="format-icon pdf">PDF</span>
+                    <span>PDF Document</span>
+                  </button>
+                  <button className="download-menu-item" onClick={() => { exportDOCX(); setIsDownloadOpen(false); }}>
+                    <span className="format-icon docx">DOC</span>
+                    <span>Word Document</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

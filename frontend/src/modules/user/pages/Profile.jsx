@@ -16,7 +16,7 @@ import './Profile.css';
  * professional activity visualization, and premium SaaS UI/UX.
  */
 const Profile = () => {
-  const { user, setUser, updateAvatar: updateGlobalAvatar } = useAuth();
+  const { user, userAvatar, setUser, updateAvatar: updateGlobalAvatar } = useAuth();
   
   // 🚀 TABS STATE
   const [activeTab, setActiveTab] = useState('general'); // 'general' | 'security' | 'activity' | 'billing'
@@ -25,11 +25,9 @@ const Profile = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [stats, setStats] = useState({ documents: 0, shared: 0 });
-  const [avatar, setAvatar] = useState(user?.avatar || localStorage.getItem(`user_avatar_${user?._id || user?.id}`) || null);
 
   useEffect(() => {
     if (user?.name) setName(user.name);
-    if (user?.avatar) setAvatar(user.avatar);
   }, [user]);
 
   useEffect(() => {
@@ -270,8 +268,8 @@ const Profile = () => {
             <div className="profile-hero-header"></div>
             <div className="profile-hero-content">
               <div className="profile-avatar-giant-wrapper">
-                {avatar ? (
-                  <img src={avatar} alt="Profile" className="profile-avatar-giant" />
+                {userAvatar ? (
+                  <img src={userAvatar} alt="Profile" className="profile-avatar-giant" />
                 ) : (
                   <div className="profile-initials-giant">{getInitials(name)}</div>
                 )}

@@ -116,7 +116,7 @@ export default function LexicalToolbar() {
   };
 
   return (
-    <div className="lexical-toolbar" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap' }}>
+    <div className="lexical-toolbar">
       <div className="toolbar-group" style={{ display: 'flex', gap: '0.25rem' }}>
         <ToolbarButton 
           onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)} 

@@ -105,6 +105,20 @@ export const acceptRequestService = async (recipientId, connectionId) => {
 };
 
 /**
+ * @service rejectRequestService
+ * @description Permanently removes a connection request.
+ */
+export const rejectRequestService = async (recipientId, connectionId) => {
+  const connection = await Connection.findById(connectionId);
+  if (!connection) throw createError("Connection request not found", 404);
+  if (connection.recipient.toString() !== recipientId.toString()) {
+    throw createError("Unauthorized", 403);
+  }
+
+  return await Connection.findByIdAndDelete(connectionId);
+};
+
+/**
  * @service getPendingRequestsService
  */
 export const getPendingRequestsService = async (userId) => {

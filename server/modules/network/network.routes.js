@@ -34,6 +34,13 @@ router.get('/requests/pending', authMiddleware, networkController.getPendingRequ
 router.patch('/request/:id/accept', authMiddleware, networkController.acceptRequest);
 
 /**
+ * @route PATCH /api/network/request/:id/reject
+ * @desc Reject/Ignore a connection request
+ * @access Private
+ */
+router.patch('/request/:id/reject', authMiddleware, networkController.rejectRequest);
+
+/**
  * @route GET /api/network/friends
  * @desc Get all active connections
  * @access Private

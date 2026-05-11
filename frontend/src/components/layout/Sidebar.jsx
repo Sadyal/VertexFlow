@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, User, X, LogOut, Users } from 'lucide-react';
+import { LayoutDashboard, FileText, User, X, LogOut, Users, Globe } from 'lucide-react';
 import { ROUTES } from '../../utils/constants';
 import { useLogout } from '../../modules/auth/auth.hooks';
 
@@ -46,6 +46,13 @@ const Sidebar = ({ isOpen, onClose }) => {
         >
           <Users size={20} />
           <span>Network</span>
+        </NavLink>
+        <NavLink 
+          to="/social" 
+          className={({ isActive }) => isActive ? 'sidebar-nav-item active' : 'sidebar-nav-item'}
+        >
+          <Globe size={20} />
+          <span>Social Hub</span>
         </NavLink>
         
         <button 

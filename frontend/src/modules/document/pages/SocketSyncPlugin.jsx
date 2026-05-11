@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot } from 'lexical';
 import { $generateNodesFromDOM } from '@lexical/html';
+import { db } from '../../../utils/db';
 
 /**
  * @component SocketSyncPlugin
@@ -24,6 +25,7 @@ export default function SocketSyncPlugin({ socket, docId, initialContent, isOnli
         : JSON.stringify(pendingStateRef.current);
         
       socket.emit('save-document', stateString);
+      db.saveDocument(docId, stateString); // 🚀 Local persist
       pendingStateRef.current = null;
       onSyncStatusChange(false);
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -31,29 +33,45 @@ export default function SocketSyncPlugin({ socket, docId, initialContent, isOnli
   }, [socket, isOnline, onSyncStatusChange]);
 
   useEffect(() => {
-    if (!editor || hasInitializedRef.current) return;
+    if (!editor || !initialContent) return;
 
-    if (initialContent !== null && initialContent !== undefined) {
+    const contentString = typeof initialContent === 'string' ? initialContent : JSON.stringify(initialContent);
+    
+    // 🚀 If already initialized, only update if the content is actually different (Server vs Cache)
+    if (hasInitializedRef.current) {
+      if (contentString === lastContentRef.current) return;
+      
+      // If server version is different, we must update to ensure integrity
+      isUpdatingRef.current = true;
       try {
-        const contentToParse = typeof initialContent === 'string' && initialContent.startsWith('{')
-          ? JSON.parse(initialContent) 
-          : initialContent;
-          
+        const contentToParse = contentString.startsWith('{') ? JSON.parse(contentString) : contentString;
         const parsedState = editor.parseEditorState(contentToParse);
         editor.setEditorState(parsedState);
-        lastContentRef.current = JSON.stringify(parsedState.toJSON());
-      } catch (e) {
-        // Fallback to HTML
-        editor.update(() => {
-          const parser = new DOMParser();
-          const dom = parser.parseFromString(initialContent, 'text/html');
-          const nodes = $generateNodesFromDOM(editor, dom);
-          const root = $getRoot();
-          root.clear();
-          root.append(...nodes);
-        });
-        lastContentRef.current = initialContent;
+        lastContentRef.current = contentString;
+      } finally {
+        setTimeout(() => { isUpdatingRef.current = false; }, 100);
       }
+      return;
+    }
+
+    // First time initialization (usually from Cache)
+    try {
+      const contentToParse = contentString.startsWith('{') ? JSON.parse(contentString) : contentString;
+      const parsedState = editor.parseEditorState(contentToParse);
+      editor.setEditorState(parsedState);
+      lastContentRef.current = contentString;
+      hasInitializedRef.current = true;
+    } catch (e) {
+      // Fallback to HTML
+      editor.update(() => {
+        const parser = new DOMParser();
+        const dom = parser.parseFromString(initialContent, 'text/html');
+        const nodes = $generateNodesFromDOM(editor, dom);
+        const root = $getRoot();
+        root.clear();
+        root.append(...nodes);
+      });
+      lastContentRef.current = contentString;
       hasInitializedRef.current = true;
     }
   }, [editor, initialContent]);
@@ -74,6 +92,7 @@ export default function SocketSyncPlugin({ socket, docId, initialContent, isOnli
       try {
         const parsedState = editor.parseEditorState(stateJSON);
         editor.setEditorState(parsedState, { tag: 'remote' });
+        db.saveDocument(docId, stateString); // 🚀 Update cache on remote change
       } catch (err) {
         console.error('Remote sync error:', err);
       } finally {
@@ -100,6 +119,7 @@ export default function SocketSyncPlugin({ socket, docId, initialContent, isOnli
       
       // 🚀 Broadcast to others immediately
       socket.emit('send-changes', stateJSON);
+      db.saveDocument(docId, stateString); // 🚀 Cache local edits instantly
 
       onSyncStatusChange(true);
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);

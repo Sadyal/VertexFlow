@@ -44,17 +44,28 @@ export const registerDocHandlers = (io, socket) => {
       .emit("receive-changes", delta);
   });
 
-  // SAVE DOCUMENT (CONTROLLED)
+  // SAVE DOCUMENT (With Permission Verification)
   socket.on("save-document", async (data) => {
     try {
       if (!socket.currentDoc) return;
+
+      // 🛡️ RE-VERIFY PERMISSIONS
+      const doc = await Document.findById(socket.currentDoc).select('owner collaborators');
+      if (!doc) return;
+
+      const userId = socket.userId;
+      const isOwner = doc.owner.toString() === userId;
+      const isCollaborator = doc.collaborators.some(id => id.toString() === userId);
+
+      if (!isOwner && !isCollaborator) {
+        return socket.emit("access-denied");
+      }
 
       await Document.findByIdAndUpdate(
         socket.currentDoc,
         { content: data },
         { returnDocument: 'before' }
       );
-
     } catch (err) {
       console.error("❌ save-document error:", err.message);
     }

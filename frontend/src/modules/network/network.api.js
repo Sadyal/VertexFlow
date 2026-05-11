@@ -54,6 +54,18 @@ export const networkApi = {
   },
 
   /**
+   * Reject/Ignore a connection request
+   */
+  ignoreRequest: async (connectionId) => {
+    try {
+      const response = await api.patch(`/api/network/request/${connectionId}/reject`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  /**
    * Get all friends (accepted connections)
    */
   getFriends: async () => {

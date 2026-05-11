@@ -18,6 +18,7 @@ const Dashboard = lazy(() => import('../modules/document/pages/Dashboard'));
 const Network = lazy(() => import('../modules/network/pages/Network'));
 const Editor = lazy(() => import('../modules/document/pages/Editor'));
 const Profile = lazy(() => import('../modules/user/pages/Profile'));
+const SocialHub = lazy(() => import('../modules/social/pages/SocialHub.jsx'));
 const VerifyEmail = lazy(() => import('../modules/auth/pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('../modules/auth/pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('../modules/auth/pages/ResetPassword'));
@@ -55,6 +56,7 @@ const AppRoutes = () => {
             <Route path="/docs/:id" element={<Editor />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/network" element={<Network />} />
+            <Route path="/social" element={<SocialHub />} />
           </Route>
         </Route>
 

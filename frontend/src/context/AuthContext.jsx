@@ -1,6 +1,7 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import { authApi } from '../modules/auth/auth.api';
 import { storage } from '../utils/storage';
+import { db } from '../utils/db';
 import Loader from '../components/common/Loader';
 
 /**
@@ -32,7 +33,7 @@ export const AuthProvider = ({ children }) => {
   // STATE MANAGEMENT
   // ==========================================
   const [user, setUser] = useState(() => storage.get('user', null));
-  const [userAvatar, setUserAvatar] = useState(() => storage.get('user_avatar', null));
+  const [userAvatar, setUserAvatar] = useState(null);
   const [isInitializing, setIsInitializing] = useState(() => !localStorage.getItem('user'));
 
   // Helper to update user state and persistence
@@ -40,28 +41,31 @@ export const AuthProvider = ({ children }) => {
     setUser((prev) => {
       const nextUser = typeof userData === 'function' ? userData(prev) : userData;
       if (nextUser) {
-        storage.set('user', nextUser);
+        // 🚀 THIN STORAGE: Strip the heavy avatar before saving to LocalStorage
+        const { avatar, ...thinUser } = nextUser;
+        storage.set('user', thinUser);
+        
+        // 🚀 PROPER STORAGE: Save the heavy avatar only to IndexedDB
+        if (avatar) {
+          db.saveUserAsset('avatar', avatar);
+          setUserAvatar(avatar);
+        }
       } else {
         storage.remove('user');
         storage.remove('user_avatar');
+        db.clearAll();
+        setUserAvatar(null);
       }
       return nextUser;
     });
   };
 
-  // 🔄 Sync avatar state and localStorage whenever user object changes
+  // 🔄 Sync avatar state whenever user object changes
   useEffect(() => {
     if (user) {
-      if (user.avatar) {
-        setUserAvatar(user.avatar);
-        storage.set('user_avatar', user.avatar);
-      } else {
-        setUserAvatar(null);
-        storage.remove('user_avatar');
-      }
+      setUserAvatar(user.avatar || null);
     } else {
       setUserAvatar(null);
-      storage.remove('user_avatar');
     }
   }, [user]);
 
@@ -71,6 +75,11 @@ export const AuthProvider = ({ children }) => {
   const checkSession = async () => {
     try {
       console.log('📡 AuthContext: Checking session...');
+      
+      // 🚀 Load avatar from IndexedDB instantly
+      const cachedAvatar = await db.getUserAsset('avatar');
+      if (cachedAvatar) setUserAvatar(cachedAvatar);
+
       const response = await authApi.getMe();
       if (response.success) {
         console.log('✅ AuthContext: Session valid', response.data.user?.email || '');
@@ -126,6 +135,8 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const updateAvatar = (newAvatar) => {
+    setUserAvatar(newAvatar);
+    db.saveUserAsset('avatar', newAvatar);
     handleSetUser(prev => prev ? { ...prev, avatar: newAvatar } : prev);
   };
 

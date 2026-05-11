@@ -7,17 +7,19 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-lexical': [
-            'lexical', 
-            '@lexical/react', 
-            '@lexical/rich-text', 
-            '@lexical/list', 
-            '@lexical/link', 
-            '@lexical/table'
-          ],
-          'vendor-icons': ['lucide-react']
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
+              return 'vendor-react';
+            }
+            if (id.includes('lexical')) {
+              return 'vendor-lexical';
+            }
+            if (id.includes('lucide-react')) {
+              return 'vendor-icons';
+            }
+            return 'vendor';
+          }
         }
       }
     },

@@ -38,6 +38,18 @@ export const acceptRequest = async (req, res, next) => {
 };
 
 /**
+ * @controller rejectRequest
+ */
+export const rejectRequest = async (req, res, next) => {
+  try {
+    await networkService.rejectRequestService(req.userId, req.params.id);
+    res.status(200).json({ success: true, message: "Request ignored" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @controller getPendingRequests
  */
 export const getPendingRequests = async (req, res, next) => {

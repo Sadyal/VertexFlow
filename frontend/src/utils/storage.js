@@ -16,26 +16,49 @@ export const storage = {
 
   set: (key, value) => {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      const serialized = JSON.stringify(value);
+      
+      // 🛡️ PRODUCTION GUARD: Prevent massive data (like Base64 images) from entering storage
+      // LocalStorage is limited to ~5MB. We cap individual keys at 200KB for safety.
+      if (serialized.length > 204800) { 
+        console.warn(`🚀 Storage: Data for "${key}" is too large (${(serialized.length / 1024).toFixed(1)}KB). Sanitizing before storage.`);
+        if (typeof value === 'object' && value !== null) {
+          // Strip heavy fields like 'avatar' or 'image' for storage, but keep metadata
+          const { avatar, image, content, ...metadata } = value;
+          localStorage.setItem(key, JSON.stringify(metadata));
+          return true;
+        }
+      }
+
+      localStorage.setItem(key, serialized);
       return true;
     } catch (error) {
       if (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
         console.error('🚨 Storage: Quota exceeded. Cleaning up non-essential cache...');
         
-        // Strategy: Clear document caches but keep the 'user' session
+        // 1. Purge Expendable Cache (Drafts, old logs, etc.)
         const keys = Object.keys(localStorage);
         keys.forEach(k => {
-          if (k.startsWith('vf_docs_') || k.startsWith('lexical_')) {
+          if (k.startsWith('vf_docs_') || k.startsWith('lexical_') || k === 'user_avatar') {
             localStorage.removeItem(k);
           }
         });
 
-        // Try again after cleanup
+        // 2. Try again after cleanup
         try {
           localStorage.setItem(key, JSON.stringify(value));
           return true;
         } catch (retryError) {
-          console.error('💀 Storage: Critical failure. Even after cleanup, quota exceeded.', retryError);
+          // 3. Final Fallback: If still failing, store only minimal session ID/Role
+          if (key === 'user' && typeof value === 'object') {
+            const minimal = { id: value.id || value._id, role: value.role, email: value.email };
+            try {
+              localStorage.setItem(key, JSON.stringify(minimal));
+              return true;
+            } catch (f) {
+              console.error('💀 Storage: Critical failure. Even minimal session rejected.');
+            }
+          }
           return false;
         }
       }
@@ -53,13 +76,11 @@ export const storage = {
 
   clearAllButAuth: () => {
     const user = localStorage.getItem('user');
-    const avatar = localStorage.getItem('user_avatar');
     const theme = localStorage.getItem('app-theme');
     
     localStorage.clear();
     
     if (user) localStorage.setItem('user', user);
-    if (avatar) localStorage.setItem('user_avatar', avatar);
     if (theme) localStorage.setItem('app-theme', theme);
   }
 };

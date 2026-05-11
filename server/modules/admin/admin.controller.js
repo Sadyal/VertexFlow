@@ -325,8 +325,14 @@ export const deleteUser = async (req, res, next) => {
 
     // 1. Delete user's documents
     await Document.deleteMany({ owner: id });
+
+    // 2. Remove user from all collaboration lists (Deep Cleanup)
+    await Document.updateMany(
+      { collaborators: id },
+      { $pull: { collaborators: id } }
+    );
     
-    // 2. Delete user
+    // 3. Delete user
     const user = await User.findByIdAndDelete(id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });

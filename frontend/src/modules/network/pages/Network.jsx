@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Check, X, Users, MessageSquare, Clock, UserPlus } from 'lucide-react';
 import { networkApi } from '../network.api';
 import { useAuth } from '../../../context/AuthContext';
+import { db } from '../../../utils/db';
 import { io } from 'socket.io-client';
 import ChatPanel from '../components/ChatPanel';
 import Skeleton from '../../../components/common/Skeleton';
@@ -30,17 +31,25 @@ const Network = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [friends, setFriends] = useState(() => {
-    // ⚡ INSTANT LOAD: Initialize from cache if available
-    const cached = localStorage.getItem(`network_friends_${user?._id || user?.id}`);
-    return cached ? JSON.parse(cached) : [];
-  });
-  const [isLoading, setIsLoading] = useState(!friends.length); // Only show loader if cache is empty
+  const [friends, setFriends] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSearching, setIsSearching] = useState(false);
   const [activeChat, setActiveChat] = useState(null);
   const [socket, setSocket] = useState(null);
   const [showMobileChat, setShowMobileChat] = useState(false);
-  const [activeTab, setActiveTab] = useState('chats'); // 'chats' | 'discover' | 'requests'
+  const [activeTab, setActiveTab] = useState('chats');
+
+  // ⚡ INSTANT LOAD: Load Network cache from IndexedDB on mount
+  useEffect(() => {
+    const loadCache = async () => {
+      const cached = await db.getUserAsset(`network_friends_${user?._id || user?.id}`);
+      if (cached) {
+        setFriends(cached);
+        setIsLoading(false);
+      }
+    };
+    loadCache();
+  }, [user]);
 
   const fetchData = async () => {
     try {
@@ -51,8 +60,8 @@ const Network = () => {
       if (requestsRes.success) setPendingRequests(requestsRes.data);
       if (friendsRes.success) {
         setFriends(friendsRes.data);
-        // ⚡ CACHE UPDATE: Store for next refresh
-        localStorage.setItem(`network_friends_${user?._id || user?.id}`, JSON.stringify(friendsRes.data));
+        // ⚡ CACHE UPDATE: Use IndexedDB for large lists
+        db.saveUserAsset(`network_friends_${user?._id || user?.id}`, friendsRes.data);
       }
     } catch (err) {
       console.error("Failed to fetch network data:", err);
@@ -108,22 +117,29 @@ const Network = () => {
     };
   }, [socket, activeChat, user]);
 
-  const handleSearch = async (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-    if (query.length < 3) {
-      setSearchResults([]);
-      return;
-    }
-    setIsSearching(true);
-    try {
-      const response = await networkApi.searchUsers(query);
-      if (response.success) setSearchResults(response.data);
-    } catch (err) {
-      console.error("Search failed:", err);
-    } finally {
-      setIsSearching(false);
-    }
+  // 🚀 SEARCH DEBOUNCING
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (searchQuery.length < 3) {
+        setSearchResults([]);
+        return;
+      }
+      setIsSearching(true);
+      try {
+        const response = await networkApi.searchUsers(searchQuery);
+        if (response.success) setSearchResults(response.data);
+      } catch (err) {
+        console.error("Search failed:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 400); // 400ms delay to protect server
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const handleSearch = (e) => {
+    setSearchQuery(e.target.value);
   };
 
   const sendRequest = async (recipientId) => {
@@ -155,10 +171,10 @@ const Network = () => {
     // 🚀 Optimistically remove from UI
     setPendingRequests(prev => prev.filter(r => r._id !== connectionId));
     try {
-      // 🚀 FIX: Ignore should NOT accept. 
-      // For now, since there's no reject endpoint, we just remove it from UI.
-      // If a reject endpoint is added later, call it here.
+      // 🚀 FIXED: Call ignore API so it doesn't return on refresh
+      await networkApi.ignoreRequest(connectionId);
     } catch (err) {
+      console.error("Failed to ignore request:", err);
       fetchData();
     }
   };

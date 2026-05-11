@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { ROUTES } from '../utils/constants';
 import Button from '../components/common/Button';
-import { Sparkles, FileText, Zap, Shield, Users, ArrowRight } from 'lucide-react';
+import { Sparkles, FileText, Zap, Shield, ArrowRight } from 'lucide-react';
 
 const Home = () => {
   return (

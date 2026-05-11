@@ -3,6 +3,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import compression from "compression";
+import path from "path";
 
 import authRoutes from "./modules/auth/auth.routes.js";
 import docRoutes from "./modules/document/doc.routes.js";
@@ -11,6 +12,7 @@ import aiRoutes from "./modules/ai/ai.routes.js";
 import errorMiddleware from "./middleware/error.middleware.js";
 import { globalLimiter } from "./middleware/rateLimiter.js";
 import maintenanceMiddleware from "./middleware/maintenance.middleware.js";
+import socialRoutes from "./modules/social/social.routes.js";
 
 const app = express();
 
@@ -37,20 +39,27 @@ const isProd = process.env.NODE_ENV === "production";
 /**
  * 🌐 CORS CONFIG (CRITICAL: MUST BE BEFORE RATE LIMITER)
  */
-const allowedOrigins = ["http://localhost:5173"];
+const allowedOrigins = [
+  "http://localhost:5173", 
+  "http://localhost:4000",
+  process.env.CLIENT_URL // 🚀 PRODUCTION URL (Vercel)
+];
 
 app.use(
   cors({
     origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
 
       if (
         allowedOrigins.includes(origin) ||
-        origin.endsWith(".vercel.app")
+        origin.endsWith(".vercel.app") || // 🚀 Allow all Vercel previews
+        !isProd // 🚀 Always allow in development
       ) {
         return callback(null, true);
       }
 
+      console.error(`❌ CORS blocked origin: ${origin}`);
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
@@ -60,7 +69,9 @@ app.use(
 /**
  * 🔐 SECURITY HEADERS & RATE LIMITING
  */
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // 🖼️ ALLOW IMAGES TO BE LOADED ACROSS PORTS
+}));
 app.use(globalLimiter); // 🚀 Apply to all routes
 
 
@@ -70,9 +81,11 @@ app.use(globalLimiter); // 🚀 Apply to all routes
  */
 
 /**
- * 🍪 COOKIE PARSER
+ * 🍪 COOKIE PARSER & BODY LIMITS
  */
 app.use(cookieParser());
+app.use(express.json({ limit: "10mb" })); // 🛡️ Prevent "Big Payload" crashes
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 /**
  * 🧪 REQUEST LOGGER (DEV ONLY)
@@ -83,6 +96,12 @@ if (!isProd) {
     next();
   });
 }
+
+/**
+ * 📁 STATIC ASSETS
+ * Serve uploaded post images
+ */
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 /**
  * ❤️ HEALTH CHECK
@@ -107,6 +126,7 @@ app.use(trackingMiddleware);
 /**
  * 🚀 ROUTES
  */
+app.use("/api/social", socialRoutes); // ⚡ High priority for multipart handling
 app.use("/api/auth", authRoutes);
 
 // 🛠️ PLATFORM SECURITY: Maintenance Enforcement
