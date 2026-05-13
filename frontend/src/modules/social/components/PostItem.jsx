@@ -45,7 +45,7 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
   const isPostOwner = post.author?._id === user?.id || post.author?._id === user?._id;
 
   return (
-    <article className="post-card animate-fade-in">
+    <article className="post-card animate-fade-in" style={{ contentVisibility: 'auto', containIntrinsicSize: '0 400px' }}>
       {/* HEADER */}
       <div className="post-header">
         <div className="author-avatar">
@@ -56,19 +56,27 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
                 : `${import.meta.env.VITE_API_URL}${post.author.avatar}`} 
               alt={post.author.name} 
               loading="lazy"
+              width="42"
+              height="42"
             />
           ) : (
             post.author?.name?.charAt(0) || 'U'
           )}
         </div>
         <div className="author-info">
-          <h4>{post.author?.name || 'Anonymous'}</h4>
+          <h3>{post.author?.name || 'Anonymous'}</h3>
           <span className="post-time">{formatDate(post.createdAt)}</span>
         </div>
         
         {/* THREE DOTS MENU */}
         <div className="dropdown">
-          <button className="interaction-btn" onClick={() => setShowMenu(!showMenu)} style={{ marginLeft: 'auto' }}>
+          <button 
+            className="interaction-btn" 
+            onClick={() => setShowMenu(!showMenu)} 
+            style={{ marginLeft: 'auto' }}
+            aria-label="Post options"
+            aria-expanded={showMenu}
+          >
             <MoreHorizontal size={20} />
           </button>
           
@@ -107,7 +115,11 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
             alt="Post content" 
             className="post-image" 
             loading={priority ? "eager" : "lazy"}
-            fetchPriority={priority ? "high" : "auto"}
+            {...(priority ? { fetchPriority: "high" } : {})}
+            decoding="async"
+            width="600"
+            height="400"
+            style={{ objectFit: 'cover', width: '100%', height: 'auto', aspectRatio: '16/9' }}
           />
         </div>
       )}
@@ -117,6 +129,7 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
         <button 
           className={`interaction-btn ${post.isLiked ? 'liked' : ''}`} 
           onClick={handleLike}
+          aria-label={post.isLiked ? 'Unlike post' : 'Like post'}
         >
           <Heart size={20} />
           <span>{post.likesCount || 0}</span>
@@ -125,6 +138,8 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
         <button 
           className="interaction-btn" 
           onClick={() => setShowComments(!showComments)}
+          aria-label="Show comments"
+          aria-expanded={showComments}
         >
           <MessageCircle size={20} />
           <span>{post.commentsCount || post.comments?.length || 0}</span>
@@ -149,6 +164,7 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
               console.error('Share failed', err);
             }
           }}
+          aria-label="Share post"
         >
           <Share2 size={20} />
           <span>Share</span>
@@ -173,6 +189,8 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
                           : `${import.meta.env.VITE_API_URL}${comment.user.avatar}`} 
                         alt={comment.user.name} 
                         loading="lazy"
+                        width="24"
+                        height="24"
                       />
                     ) : (
                       comment.user?.name?.charAt(0) || 'U'
@@ -191,6 +209,7 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
                               onDeleteComment(post._id, comment._id);
                             }
                           }}
+                          aria-label="Delete comment"
                         >
                           <X size={14} />
                         </button>
@@ -210,6 +229,8 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
                     ? userAvatar 
                     : `${import.meta.env.VITE_API_URL}${userAvatar}`} 
                   alt="Me" 
+                  width="24"
+                  height="24"
                 />
               ) : (
                 <UserIcon size={14} />
@@ -223,7 +244,12 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
               onChange={(e) => setCommentText(e.target.value)}
               disabled={isSubmitting}
             />
-            <button type="submit" className="interaction-btn" disabled={isSubmitting || !commentText.trim()}>
+            <button 
+              type="submit" 
+              className="interaction-btn" 
+              disabled={isSubmitting || !commentText.trim()}
+              aria-label="Send comment"
+            >
               <Send size={18} color={commentText.trim() ? 'var(--accent-primary)' : 'var(--text-muted)'} />
             </button>
           </form>

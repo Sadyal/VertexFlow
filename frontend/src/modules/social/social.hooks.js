@@ -4,6 +4,7 @@ import axios from '../../utils/axios';
 export const useSocial = () => {
   const [posts, setPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({ hasMore: true, currentPage: 1 });
 
@@ -34,7 +35,7 @@ export const useSocial = () => {
    * 🚀 CREATE POST
    */
   const createPost = useCallback(async (formData) => {
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       const res = await axios.post('/api/social/posts', formData);
       setPosts(prev => [res.data.post, ...prev]);
@@ -42,7 +43,7 @@ export const useSocial = () => {
     } catch (err) {
       throw new Error(err.message || 'Failed to create post');
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   }, []);
 
@@ -149,6 +150,7 @@ export const useSocial = () => {
     setPosts,
     isLoading,
     setIsLoading,
+    isSubmitting,
     error,
     pagination,
     fetchPosts,

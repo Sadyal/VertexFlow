@@ -1,0 +1,12 @@
+# VertexFlow Robots.txt
+# Optimized for SEO and crawler efficiency
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /verify-email
+Disallow: /reset-password
+Disallow: /forgot-password
+
+# Sitemap
+Sitemap: https://vertexflow.com/sitemap.xml

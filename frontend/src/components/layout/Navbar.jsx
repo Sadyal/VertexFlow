@@ -30,12 +30,12 @@ const Navbar = ({ onMenuClick }) => {
       </div>
       
       <div className="navbar-right">
-        <button onClick={toggleTheme} className="theme-toggle-btn" title="Toggle Theme">
+        <button onClick={toggleTheme} className="theme-toggle-btn" title="Toggle Theme" aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}>
           {theme === 'dark' ? <Sun size={20} color="var(--text-secondary)" /> : <Moon size={20} color="var(--text-secondary)" />}
         </button>
         
         <div className="navbar-actions">
-          <Link to="/profile" className="user-profile-link">
+          <Link to="/profile" className="user-profile-link" aria-label="View my profile">
             <div className="user-profile">
               <div className="avatar" style={{ backgroundImage: userAvatar ? `url(${userAvatar})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }}>
                 {!userAvatar && getInitials(user?.name)}

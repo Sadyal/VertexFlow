@@ -27,7 +27,7 @@ import {
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { TableNode, TableCellNode, TableRowNode } from '@lexical/table';
 import { ListItemNode, ListNode } from '@lexical/list';
-import { CodeNode, CodeHighlightNode } from '@lexical/code';
+import { CodeNode, CodeHighlightNode, registerCodeHighlighting } from '@lexical/code';
 import { AutoLinkNode, LinkNode } from '@lexical/link';
 import { HorizontalRuleNode } from '@lexical/react/LexicalHorizontalRuleNode';
 import { ImageNode } from './ImageNode.jsx';
@@ -48,9 +48,22 @@ import FloatingAIButton from '../../../components/ai/FloatingAIButton';
 import ShareModal from '../components/ShareModal';
 import DeleteModal from '../components/DeleteModal';
 import { useNetworkStatus } from '../../../hooks/useNetworkStatus';
-import html2pdf from 'html2pdf.js';
 import { db } from '../../../utils/db';
 import './EditorUI.css';
+
+// 🌈 PrismJS for Code Highlighting
+import Prism from 'prismjs';
+import 'prismjs/components/prism-clike';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-css';
+import 'prismjs/components/prism-markdown';
+import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-json';
+
+// Fix for Prism not being defined globally in production builds
+if (typeof window !== 'undefined') {
+  window.Prism = Prism;
+}
 
 const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
@@ -212,8 +225,11 @@ const Editor = () => {
     }
   };
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
     if (!editorInstance) return;
+
+    // 🚀 Dynamic Import: Only load the heavy PDF library when needed
+    const html2pdf = (await import('html2pdf.js')).default;
 
     editorInstance.read(() => {
       const htmlContent = $generateHtmlFromNodes(editorInstance, null);
@@ -321,7 +337,7 @@ const Editor = () => {
         {/* HEADER SECTION */}
         <div className="editor-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '50%' }}>
-            <button className="icon-btn" onClick={() => navigate('/dashboard')}>
+            <button className="icon-btn" onClick={() => navigate('/dashboard')} aria-label="Go back to dashboard">
               <ChevronLeft size={20} />
             </button>
             <input 
@@ -390,6 +406,7 @@ const Editor = () => {
                   setIsDownloadOpen(!isDownloadOpen);
                   setIsMoreMenuOpen(false); 
                 }}
+                aria-label="Download document"
               >
                 <Download size={20} />
               </button>
@@ -401,6 +418,7 @@ const Editor = () => {
                     setIsMoreMenuOpen(!isMoreMenuOpen);
                     setIsDownloadOpen(false);
                   }}
+                  aria-label="More options"
                 >
                   <MoreVertical size={20} />
                 </button>
@@ -475,6 +493,7 @@ const Editor = () => {
           <LinkPlugin />
           <TablePlugin />
           <HorizontalRulePlugin />
+          <CodeHighlightPlugin />
           <SocketSyncPlugin 
             socket={socket} 
             docId={id} 
@@ -509,6 +528,18 @@ const EditorCapturePlugin = ({ onEditorReady }) => {
   useEffect(() => {
     if (editor) onEditorReady(editor);
   }, [editor, onEditorReady]);
+  return null;
+};
+
+/**
+ * 🌈 Custom CodeHighlightPlugin
+ * Since Lexical v0.44.0 doesn't export this from @lexical/react, we implement it here.
+ */
+const CodeHighlightPlugin = () => {
+  const [editor] = useLexicalComposerContext();
+  useEffect(() => {
+    return registerCodeHighlighting(editor);
+  }, [editor]);
   return null;
 };
 

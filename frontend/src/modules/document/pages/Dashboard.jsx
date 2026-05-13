@@ -54,6 +54,11 @@ const Dashboard = () => {
   const { isOnline } = useNetworkStatus();
   const [isCreating, setIsCreating] = useState(false);
 
+  // 🌍 SEO & Title
+  useEffect(() => {
+    document.title = 'Dashboard | VertexFlow';
+  }, []);
+
   // Fetch documents when the dashboard mounts
   useEffect(() => {
     fetchDocs();

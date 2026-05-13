@@ -4,7 +4,42 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#050508" />
+    <meta name="description" content="VertexFlow - A high-performance, collaborative workspace powered by AI and real-time synchronization." />
+    <meta name="keywords" content="collaboration, productivity, editor, real-time, AI, workflow" />
+    
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="VertexFlow - Collaborative Workspace" />
+    <meta property="og:description" content="Seamless real-time collaboration with AI-powered document intelligence." />
+    <meta property="og:image" content="/og-image.png" />
+    
     <title>VertexFlow - Collaborative Workspace</title>
+
+    <!-- 🚀 PERFORMANCE: Optimized Discovery -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="http://localhost:4000">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+      :root {
+        --bg-primary: #050508; --bg-secondary: #0d0d14; --bg-tertiary: #161622;
+        --accent-primary: #6366f1; --accent-secondary: #8b5cf6;
+        --text-primary: #f8fafc; --text-secondary: #94a3b8; --text-muted: #64748b;
+        --radius-md: 14px; --radius-lg: 24px;
+        --transition-normal: 0.4s cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      body {
+        font-family: 'Inter', system-ui, sans-serif;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        margin: 0; line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+      .skeleton { background: #161622; border-radius: 8px; opacity: 0.6; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

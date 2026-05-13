@@ -71,6 +71,8 @@
   padding: 0.25rem 0.5rem 0.25rem 1.25rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.3s ease;
+  overflow: hidden; /* Fix for potential overlap */
+  min-width: 0; /* Ensure flex shrinkage */
 }
 
 .composer-form-inline:focus-within {
@@ -96,12 +98,18 @@
   font-size: 0.95rem;
   outline: none;
   padding: 0.5rem 0;
+  width: 100%;
+}
+
+::placeholder {
+  color: var(--text-muted); /* Ensure better contrast for a11y */
 }
 
 .composer-actions-inline {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  flex-shrink: 0; /* Prevent icons from being squashed */
 }
 
 .icon-action-btn {
@@ -181,6 +189,7 @@
   overflow: visible; /* Allow dropdowns to overflow */
   transition: all 0.3s ease;
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+  will-change: transform, opacity; /* Hardware acceleration */
 }
 
 .post-card:hover {
@@ -238,7 +247,7 @@
 
 .post-time {
   font-size: 0.75rem;
-  color: var(--text-muted);
+  color: var(--text-secondary); /* Brighter for better contrast (a11y) */
 }
 
 .post-content {

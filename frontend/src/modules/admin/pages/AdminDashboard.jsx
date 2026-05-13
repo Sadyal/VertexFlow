@@ -12,6 +12,7 @@ const AdminDashboard = () => {
   );
 
   useEffect(() => {
+    document.title = 'Admin Intelligence | VertexFlow';
     fetchData();
   }, [fetchData]);
 

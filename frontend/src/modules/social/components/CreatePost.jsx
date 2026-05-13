@@ -70,14 +70,15 @@ const CreatePost = ({ onPostCreated, isLoading }) => {
           />
           
           <div className="composer-actions-inline">
-            <label className="icon-action-btn" title="Add Image">
-              <ImageIcon size={20} />
+            <label className="icon-action-btn" title="Add Image" aria-label="Upload image to post">
+              <ImageIcon size={20} aria-hidden="true" />
               <input 
                 type="file" 
                 hidden 
                 accept="image/*" 
                 ref={fileInputRef} 
-                onChange={handleImageChange} 
+                onChange={handleImageChange}
+                aria-label="File input"
               />
             </label>
             
@@ -85,8 +86,9 @@ const CreatePost = ({ onPostCreated, isLoading }) => {
               type="submit" 
               className="post-submit-btn-inline"
               disabled={isLoading || (!content.trim() && !image)}
+              aria-label="Send post"
             >
-              {isLoading ? <div className="mini-spinner"></div> : <Send size={18} />}
+              {isLoading ? <div className="mini-spinner" aria-hidden="true"></div> : <Send size={18} aria-hidden="true" />}
             </button>
           </div>
         </form>
