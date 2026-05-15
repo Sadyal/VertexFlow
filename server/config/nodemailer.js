@@ -11,32 +11,29 @@ requiredEnv.forEach((key) => {
 });
 
 /**
- * 📧 Create transporter (Gmail)
- * Uses App Password (NOT your normal Gmail password)
+ * 📧 Create transporter (Universal SMTP - Port 465 for SSL)
  */
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: process.env.SMTP_HOST || "smtp-relay.brevo.com",
+  port: 465, // 🔒 SSL Port
+  secure: true, // 🔒 Use SSL
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  // Optional: enable in dev for debugging
-  ...(process.env.NODE_ENV === "development" && {
-    logger: true,
-    debug: true,
-  }),
+  pool: true,
+  maxConnections: 5,
 });
 
 /**
  * ✅ Verify transporter on startup
- * (non-blocking but logs readiness)
  */
 (async () => {
   try {
     await transporter.verify();
-    console.log("✅ Gmail SMTP ready");
+    console.log("🚀 SMTP Service Ready (Brevo)");
   } catch (err) {
-    console.error("❌ Gmail SMTP error:", err.message);
+    console.error("❌ SMTP Configuration Error:", err.message);
   }
 })();
 

@@ -110,7 +110,37 @@ export default function LexicalToolbar() {
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
-      reader.onload = (event) => insertImage(event.target.result);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          // 🚀 PERFORMANCE OPTIMIZATION: Resize & Compress
+          // This prevents large Base64 strings from slowing down real-time sync
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1000; // Cap width at 1000px
+          let width = img.width;
+          let height = img.height;
+
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          
+          // Use high-quality interpolation
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // 📦 Compress to 60% quality JPEG (Great balance of size and clarity)
+          const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.6);
+          insertImage(optimizedBase64);
+        };
+        img.src = event.target.result;
+      };
       reader.readAsDataURL(file);
     }
   };
