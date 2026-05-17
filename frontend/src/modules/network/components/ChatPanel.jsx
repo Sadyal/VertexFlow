@@ -1,8 +1,22 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, ArrowLeft } from 'lucide-react';
+import { Send, ArrowLeft, MoreHorizontal, Smile, CornerUpLeft, Copy, Trash2, X } from 'lucide-react';
 import { networkApi } from '../network.api';
 
 const chatCache = {};
+
+// Helper to parse private reply patterns formatted as: ↳ "quotedText"\nactualMessage
+const parseReplyMessage = (content) => {
+  if (content && content.startsWith('↳ "')) {
+    const newlineIndex = content.indexOf('\n');
+    if (newlineIndex !== -1) {
+      const replyHeader = content.substring(0, newlineIndex).trim();
+      const actualMessage = content.substring(newlineIndex + 1).trim();
+      const quotedText = replyHeader.substring(3, replyHeader.length - 1);
+      return { isReply: true, quotedText, actualMessage };
+    }
+  }
+  return { isReply: false, actualMessage: content };
+};
 
 const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile }) => {
   const [messages, setMessages] = useState(chatCache[friend._id] || []);
@@ -12,6 +26,12 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const scrollRef = useRef();
+
+  // Premium Custom States for Options Drawer, Emoji Picker & Dropdowns
+  const [activeMsgOptions, setActiveMsgOptions] = useState(null);
+  const [activeEmojiPicker, setActiveEmojiPicker] = useState(null);
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
 
   useEffect(() => {
     setPage(1);
@@ -34,6 +54,12 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
       }
     };
     fetchHistory();
+    
+    // Close overlays on chat switch
+    setActiveMsgOptions(null);
+    setActiveEmojiPicker(null);
+    setActiveDropdown(null);
+    setReplyingTo(null);
   }, [friend._id]);
 
   useEffect(() => {
@@ -66,7 +92,17 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
   const handleSend = (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !socket) return;
-    const content = newMessage.trim();
+    
+    let content = newMessage.trim();
+    if (replyingTo) {
+      // Quoted text representation
+      const replyingToText = replyingTo.content.startsWith('↳ "') 
+        ? parseReplyMessage(replyingTo.content).actualMessage
+        : replyingTo.content;
+      
+      content = `↳ "${replyingToText.substring(0, 50)}"\n${content}`;
+    }
+
     const tempMessage = {
       _id: `temp-${Date.now()}`,
       content: content,
@@ -77,6 +113,7 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
     };
     setMessages(prev => [...prev, tempMessage]);
     setNewMessage('');
+    setReplyingTo(null);
     socket.emit('private-message', { recipientId: friend._id, content: content });
   };
 
@@ -103,11 +140,43 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
     return () => socket.off('receive-message', handleReceive);
   }, [socket, friend._id, currentUser]);
 
+  // Emojis handlers
+  const handleAddReaction = (msgId, emoji) => {
+    setMessages(prev => prev.map(m => m._id === msgId ? { ...m, reaction: emoji } : m));
+    setActiveEmojiPicker(null);
+    setActiveMsgOptions(null);
+  };
+
+  const handleRemoveReaction = (msgId) => {
+    setMessages(prev => prev.map(m => m._id === msgId ? { ...m, reaction: null } : m));
+  };
+
+  // Copy handler
+  const handleCopyMessage = (content) => {
+    const { actualMessage } = parseReplyMessage(content);
+    navigator.clipboard.writeText(actualMessage);
+    setActiveDropdown(null);
+    setActiveMsgOptions(null);
+  };
+
+  // Delete handler
+  const handleDeleteMessage = (msgId) => {
+    setMessages(prev => prev.filter(m => m._id !== msgId));
+    setActiveDropdown(null);
+    setActiveMsgOptions(null);
+  };
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)' }}>
+    <div 
+      style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', position: 'relative' }}
+      onClick={() => {
+        setActiveMsgOptions(null);
+        setActiveEmojiPicker(null);
+        setActiveDropdown(null);
+      }}
+    >
       {/* HEADER */}
       <div style={{ padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {isMobile && (
             <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '0.5rem', marginLeft: '-0.5rem' }}>
@@ -125,8 +194,8 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
         </div>
       </div>
 
-      {/* MESSAGES */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      {/* MESSAGES AREA */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         {isLoading ? (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>Loading messages...</div>
         ) : (
@@ -156,12 +225,215 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
 
             {messages.map((msg, index) => {
               const isMe = (msg.sender._id || msg.sender).toString() === (currentUser.id || currentUser._id).toString();
+              const { isReply, quotedText, actualMessage } = parseReplyMessage(msg.content);
+
               return (
-                <div key={msg._id || index} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                  <div style={{ padding: '0.7rem 1rem', borderRadius: '18px', fontSize: '0.92rem', background: isMe ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: isMe ? 'white' : 'var(--text-primary)', borderBottomRightRadius: isMe ? '4px' : '18px', borderBottomLeftRadius: isMe ? '18px' : '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                    {msg.content}
+                <div 
+                  key={msg._id || index} 
+                  style={{ 
+                    alignSelf: isMe ? 'flex-end' : 'flex-start', 
+                    maxWidth: '85%', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: isMe ? 'flex-end' : 'flex-start',
+                    position: 'relative'
+                  }}
+                >
+                  {/* Bubble and Actions Flex Row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexDirection: isMe ? 'row-reverse' : 'row' }}>
+                    
+                    {/* Message Bubble Container */}
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveMsgOptions(prev => prev === msg._id ? null : msg._id);
+                        setActiveEmojiPicker(null);
+                        setActiveDropdown(null);
+                      }}
+                      style={{ 
+                        padding: '0.7rem 1rem', 
+                        borderRadius: '18px', 
+                        fontSize: '0.92rem', 
+                        background: isMe ? 'var(--accent-primary)' : 'var(--bg-tertiary)', 
+                        color: isMe ? 'white' : 'var(--text-primary)', 
+                        borderBottomRightRadius: isMe ? '4px' : '18px', 
+                        borderBottomLeftRadius: isMe ? '18px' : '4px', 
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                        maxWidth: activeMsgOptions === msg._id ? 'calc(100% - 80px)' : '100%',
+                        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+                      }}
+                    >
+                      {isReply && (
+                        <div style={{
+                          background: isMe ? 'rgba(255,255,255,0.15)' : 'var(--bg-secondary)',
+                          color: isMe ? 'rgba(255,255,255,0.9)' : 'var(--text-secondary)',
+                          padding: '6px 10px',
+                          borderRadius: '10px',
+                          fontSize: '0.8rem',
+                          borderLeft: `3px solid ${isMe ? 'white' : 'var(--accent-primary)'}`,
+                          marginBottom: '4px',
+                          fontStyle: 'italic',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: '240px'
+                        }}>
+                          {quotedText}
+                        </div>
+                      )}
+                      
+                      <div style={{ wordBreak: 'break-word' }}>{actualMessage}</div>
+                      
+                      {/* Floating Instagram Reaction Badge */}
+                      {msg.reaction && (
+                        <div 
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            handleRemoveReaction(msg._id); 
+                          }}
+                          style={{
+                            position: 'absolute',
+                            bottom: '-10px',
+                            [isMe ? 'right' : 'left']: '12px',
+                            background: 'var(--bg-secondary)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '12px',
+                            padding: '1px 5px',
+                            fontSize: '0.75rem',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                            cursor: 'pointer',
+                            zIndex: 2,
+                            userSelect: 'none'
+                          }}
+                          title="Click to remove"
+                        >
+                          {msg.reaction}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Options Tray (Smile, Arrow, Dots) next to bubble */}
+                    {activeMsgOptions === msg._id && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+                        
+                        {/* Smile Reaction button */}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveEmojiPicker(prev => prev === msg._id ? null : msg._id);
+                            setActiveDropdown(null);
+                          }}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                          title="React"
+                        >
+                          <Smile size={16} />
+                        </button>
+
+                        {/* Reply arrow button */}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReplyingTo(msg);
+                            setActiveMsgOptions(null);
+                          }}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                          title="Reply"
+                        >
+                          <CornerUpLeft size={16} />
+                        </button>
+
+                        {/* Three dots button */}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveDropdown(prev => prev === msg._id ? null : msg._id);
+                            setActiveEmojiPicker(null);
+                          }}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+                          title="More options"
+                        >
+                          <MoreHorizontal size={16} />
+                        </button>
+
+                        {/* Emoji Reaction Tray Overlays */}
+                        {activeEmojiPicker === msg._id && (
+                          <div 
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              position: 'absolute',
+                              bottom: '100%',
+                              [isMe ? 'right' : 'left']: 0,
+                              background: 'var(--bg-secondary)',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '24px',
+                              padding: '4px 8px',
+                              display: 'flex',
+                              gap: '6px',
+                              boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
+                              zIndex: 10,
+                              marginBottom: '6px'
+                            }}
+                          >
+                            {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                              <button 
+                                key={emoji}
+                                onClick={() => handleAddReaction(msg._id, emoji)}
+                                style={{ background: 'transparent', border: 'none', fontSize: '1.1rem', cursor: 'pointer', padding: '2px' }}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Action Dropdown Overlays (Copy & Delete) */}
+                        {activeDropdown === msg._id && (
+                          <div 
+                            onClick={(e) => e.stopPropagation()}
+                            style={{
+                              position: 'absolute',
+                              top: '100%',
+                              [isMe ? 'right' : 'left']: 0,
+                              background: 'var(--bg-secondary)',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '8px',
+                              padding: '4px',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
+                              zIndex: 10,
+                              marginTop: '6px',
+                              minWidth: '100px'
+                            }}
+                          >
+                            <button 
+                              onClick={() => handleCopyMessage(msg.content)}
+                              style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', padding: '8px 12px', fontSize: '0.85rem', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', width: '100%' }}
+                            >
+                              <Copy size={14} /> Copy
+                            </button>
+                            {isMe && (
+                              <button 
+                                onClick={() => handleDeleteMessage(msg._id)}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--error)', padding: '8px 12px', fontSize: '0.85rem', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', width: '100%' }}
+                              >
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.2rem', opacity: 0.8 }}>
+                  
+                  {/* Timestamp */}
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.2rem', opacity: 0.8, [isMe ? 'marginRight' : 'marginLeft']: '4px' }}>
                     {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
@@ -172,6 +444,36 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
         <div ref={scrollRef} />
       </div>
 
+      {/* Reply Preview Bar above Input Box */}
+      {replyingTo && (
+        <div style={{
+          padding: '0.6rem 1.25rem',
+          background: 'var(--bg-secondary)',
+          borderTop: '1px solid var(--border-color)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: '0.85rem',
+          color: 'var(--text-secondary)'
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, borderLeft: '3px solid var(--accent-primary)', paddingLeft: '8px' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--accent-primary)' }}>
+              Replying to {replyingTo.sender === (currentUser.id || currentUser._id) ? 'yourself' : friend.name}
+            </span>
+            <span style={{ fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px', color: 'var(--text-muted)', marginTop: '2px' }}>
+              {replyingTo.content.startsWith('↳ "') ? parseReplyMessage(replyingTo.content).actualMessage : replyingTo.content}
+            </span>
+          </div>
+          <button 
+            onClick={() => setReplyingTo(null)} 
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* CHAT INPUT FORM */}
       <form onSubmit={handleSend} style={{ padding: '1.25rem', paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: '24px', padding: '0.4rem 0.5rem 0.4rem 1.25rem', border: '1px solid var(--border-color)' }}>
           <input 
