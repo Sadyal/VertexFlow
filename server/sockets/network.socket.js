@@ -56,6 +56,23 @@ export const registerNetworkHandlers = async (io, socket) => {
   });
 
   /**
+   * Message emoji reaction
+   */
+  socket.on('message-reaction', async ({ messageId, recipientId, emoji }) => {
+    try {
+      const reactions = await chatService.addReactionService(messageId, userId, emoji);
+
+      // Broadcast reaction update to sender (all devices)
+      emitToUser(io, userId, 'receive-message-reaction', { messageId, reactions });
+
+      // Broadcast reaction update to recipient (all devices)
+      emitToUser(io, recipientId, 'receive-message-reaction', { messageId, reactions });
+    } catch (error) {
+      socket.emit('error', { message: error.message });
+    }
+  });
+
+  /**
    * Signal friend request sent
    */
   socket.on('send-friend-request', ({ recipientId, requesterName }) => {

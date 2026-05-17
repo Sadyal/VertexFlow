@@ -140,15 +140,36 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
     return () => socket.off('receive-message', handleReceive);
   }, [socket, friend._id, currentUser]);
 
+  useEffect(() => {
+    if (!socket) return;
+    const handleReceiveReaction = ({ messageId, reactions }) => {
+      setMessages(prev => prev.map(m => m._id === messageId ? { ...m, reactions } : m));
+    };
+    socket.on('receive-message-reaction', handleReceiveReaction);
+    return () => socket.off('receive-message-reaction', handleReceiveReaction);
+  }, [socket]);
+
   // Emojis handlers
   const handleAddReaction = (msgId, emoji) => {
-    setMessages(prev => prev.map(m => m._id === msgId ? { ...m, reaction: emoji } : m));
+    if (socket) {
+      socket.emit('message-reaction', { 
+        messageId: msgId, 
+        recipientId: friend._id, 
+        emoji: emoji 
+      });
+    }
     setActiveEmojiPicker(null);
     setActiveMsgOptions(null);
   };
 
   const handleRemoveReaction = (msgId) => {
-    setMessages(prev => prev.map(m => m._id === msgId ? { ...m, reaction: null } : m));
+    if (socket) {
+      socket.emit('message-reaction', { 
+        messageId: msgId, 
+        recipientId: friend._id, 
+        emoji: null 
+      });
+    }
   };
 
   // Copy handler
@@ -291,12 +312,8 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
                       <div style={{ wordBreak: 'break-word' }}>{actualMessage}</div>
                       
                       {/* Floating Instagram Reaction Badge */}
-                      {msg.reaction && (
+                      {msg.reactions && msg.reactions.length > 0 && (
                         <div 
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            handleRemoveReaction(msg._id); 
-                          }}
                           style={{
                             position: 'absolute',
                             bottom: '-10px',
@@ -304,16 +321,32 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
                             background: 'var(--bg-secondary)',
                             border: '1px solid var(--border-color)',
                             borderRadius: '12px',
-                            padding: '1px 5px',
+                            padding: '2px 6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px',
                             fontSize: '0.75rem',
                             boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                            cursor: 'pointer',
                             zIndex: 2,
                             userSelect: 'none'
                           }}
-                          title="Click to remove"
                         >
-                          {msg.reaction}
+                          {msg.reactions.map((react, rIdx) => {
+                            const isMine = react.user === (currentUser.id || currentUser._id);
+                            return (
+                              <span 
+                                key={rIdx}
+                                style={{ cursor: 'pointer' }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (isMine) handleRemoveReaction(msg._id);
+                                }}
+                                title={isMine ? "Click to remove your reaction" : "Reacted by friend"}
+                              >
+                                {react.emoji}
+                              </span>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
