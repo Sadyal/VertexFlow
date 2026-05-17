@@ -27,6 +27,7 @@ const MessageItem = memo(({
   isActive, 
   isEmojiActive, 
   isDropdownActive, 
+  isMobile,
   onToggleOptions,
   onAddReaction,
   onRemoveReaction,
@@ -134,6 +135,37 @@ const MessageItem = memo(({
               })}
             </div>
           )}
+
+          {/* Emoji Reaction Tray Overlays for Mobile */}
+          {isMobile && isEmojiActive && (
+            <div 
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                position: 'absolute',
+                bottom: '100%',
+                [isMe ? 'right' : 'left']: 0,
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '24px',
+                padding: '4px 8px',
+                display: 'flex',
+                gap: '6px',
+                boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
+                zIndex: 10,
+                marginBottom: '8px'
+              }}
+            >
+              {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                <button 
+                  key={emoji}
+                  onClick={() => onAddReaction(msg._id, emoji)}
+                  style={{ background: 'transparent', border: 'none', fontSize: '1.1rem', cursor: 'pointer', padding: '2px' }}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Options Tray (Smile, Arrow, Dots) next to bubble */}
@@ -176,8 +208,8 @@ const MessageItem = memo(({
               <MoreHorizontal size={16} />
             </button>
 
-            {/* Emoji Reaction Tray Overlays */}
-            {isEmojiActive && (
+            {/* Emoji Reaction Tray Overlays for Desktop */}
+            {!isMobile && isEmojiActive && (
               <div 
                 onClick={(e) => e.stopPropagation()}
                 style={{
@@ -259,7 +291,8 @@ const MessageItem = memo(({
     prevProps.isMe === nextProps.isMe &&
     prevProps.isActive === nextProps.isActive &&
     prevProps.isEmojiActive === nextProps.isEmojiActive &&
-    prevProps.isDropdownActive === nextProps.isDropdownActive
+    prevProps.isDropdownActive === nextProps.isDropdownActive &&
+    prevProps.isMobile === nextProps.isMobile
   );
 });
 
@@ -517,6 +550,7 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
                   isActive={activeMsgOptions === msg._id}
                   isEmojiActive={activeEmojiPicker === msg._id}
                   isDropdownActive={activeDropdown === msg._id}
+                  isMobile={isMobile}
                   onToggleOptions={handleToggleOptions}
                   onAddReaction={handleAddReaction}
                   onRemoveReaction={handleRemoveReaction}
