@@ -22,4 +22,5 @@ export const API_ENDPOINTS = {
   RESET_PASSWORD: '/api/auth/reset-password',
   AUTH: '/api/auth',
   DOCS: '/api/docs',
+  USER: '/api/user',
 };

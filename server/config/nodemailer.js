@@ -15,14 +15,16 @@ requiredEnv.forEach((key) => {
  */
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp-relay.brevo.com",
-  port: 465, // 🔒 SSL Port
-  secure: true, // 🔒 Use SSL
+  port: process.env.SMTP_PORT || 2525, // 🚀 Cloud-compatible port (Render blocks 465)
+  secure: false, // 🔒 STARTTLS automatically handles encryption over 2525
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
   },
-  pool: true,
+  pool: true, // ✅ Use connection pooling for stability
   maxConnections: 5,
+  socketTimeout: 20000, // ✅ Wait up to 20 seconds for a connection
+  connectionTimeout: 20000,
 });
 
 /**

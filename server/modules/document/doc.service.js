@@ -2,6 +2,7 @@ import Document from "../../models/document.model.js";
 import userModel from "../../models/user.model.js";
 import { v4 as uuidv4 } from "uuid";
 import { createError } from "../../utils/error.js";
+import { logActivity } from "../../utils/activityLogger.js";
 
 /**
  * 📄 Get all docs (optimized)
@@ -37,6 +38,8 @@ export const createDocService = async (userId, content) => {
     content: content || { ops: [] },
   });
 
+  logActivity(userId, "DOC_CREATED", `Created document: ${doc.title}`);
+
   return doc;
 };
 
@@ -61,6 +64,8 @@ export const renameDocService = async (docId, userId, title) => {
 
   doc.title = trimmed;
   await doc.save();
+
+  logActivity(userId, "DOC_UPDATED", `Renamed document to: ${trimmed}`);
 
   return doc;
 };
@@ -94,6 +99,8 @@ export const shareDocService = async (docId, userId, email) => {
   doc.collaborators.push(user._id);
   await doc.save();
 
+  logActivity(userId, "DOC_SHARED", `Shared document "${doc.title}" with ${normalizedEmail}`);
+
   return true;
 };
 
@@ -109,5 +116,8 @@ export const deleteDocService = async (docId, userId) => {
   }
 
   await doc.deleteOne();
+
+  logActivity(userId, "DOC_DELETED", `Deleted document: ${doc.title}`);
+
   return true;
 };

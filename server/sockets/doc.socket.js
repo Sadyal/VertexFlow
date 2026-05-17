@@ -1,4 +1,5 @@
 import Document from "../models/document.model.js";
+import { logActivity } from "../utils/activityLogger.js";
 
 export const registerDocHandlers = (io, socket) => {
 
@@ -28,6 +29,8 @@ export const registerDocHandlers = (io, socket) => {
       socket.currentDoc = docId;
 
       socket.emit("load-document", doc.content || "");
+      
+      logActivity(userId, "DOC_VIEWED", `Opened document: ${doc.title || 'Untitled'}`);
 
     } catch (err) {
       console.error("❌ get-document error:", err.message);
@@ -66,6 +69,8 @@ export const registerDocHandlers = (io, socket) => {
         { content: data },
         { returnDocument: 'before' }
       );
+
+      logActivity(userId, "DOC_EDITED", `Edited document: ${doc.title || 'Untitled'}`);
     } catch (err) {
       console.error("❌ save-document error:", err.message);
     }
@@ -87,6 +92,8 @@ export const registerDocHandlers = (io, socket) => {
         { title: newTitle },
         { returnDocument: 'before' }
       );
+
+      logActivity(socket.userId, "DOC_RENAMED", `Renamed document to: ${newTitle}`);
     } catch (err) {
       console.error("❌ update-title error:", err.message);
     }

@@ -5,25 +5,26 @@ import MainLayout from '../components/layout/MainLayout';
 import Loader from '../components/common/Loader';
 
 // ==========================================
-// LAZY LOADING STRATEGY
+// LAZY LOADING STRATEGY — ALL routes are lazy
+// Initial bundle ships zero page-level code
 // ==========================================
-// Eager load only the most critical auth pages for instant access
-// Lazy load everything else to minimize initial bundle size
 
-import Login from '../modules/auth/pages/Login';
-import Register from '../modules/auth/pages/Register';
+// Auth (small pages, but still lazy to minimise entry chunk)
+const Login = lazy(() => import('../modules/auth/pages/Login'));
+const Register = lazy(() => import('../modules/auth/pages/Register'));
+const VerifyEmail = lazy(() => import('../modules/auth/pages/VerifyEmail'));
+const ForgotPassword = lazy(() => import('../modules/auth/pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('../modules/auth/pages/ResetPassword'));
 
+// App pages
 const Home = lazy(() => import('../pages/Home'));
 const Dashboard = lazy(() => import('../modules/document/pages/Dashboard'));
 const Network = lazy(() => import('../modules/network/pages/Network'));
 const Editor = lazy(() => import('../modules/document/pages/Editor'));
 const Profile = lazy(() => import('../modules/user/pages/Profile'));
 const SocialHub = lazy(() => import('../modules/social/pages/SocialHub.jsx'));
-const VerifyEmail = lazy(() => import('../modules/auth/pages/VerifyEmail'));
-const ForgotPassword = lazy(() => import('../modules/auth/pages/ForgotPassword'));
-const ResetPassword = lazy(() => import('../modules/auth/pages/ResetPassword'));
 
-// Admin Imports (Code Split)
+// Admin (Code Split)
 import AdminRoute from '../components/common/AdminRoute';
 const AdminLayout = lazy(() => import('../modules/admin/layout/AdminLayout'));
 const AdminDashboard = lazy(() => import('../modules/admin/pages/AdminDashboard'));
@@ -31,6 +32,7 @@ const AdminUsers = lazy(() => import('../modules/admin/pages/AdminUsers'));
 const AdminDocs = lazy(() => import('../modules/admin/pages/AdminDocs'));
 const AdminAnalytics = lazy(() => import('../modules/admin/pages/AdminAnalytics'));
 const AdminSettings = lazy(() => import('../modules/admin/pages/AdminSettings'));
+
 
 const AppRoutes = () => {
   const location = useLocation();

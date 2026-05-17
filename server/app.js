@@ -13,6 +13,7 @@ import errorMiddleware from "./middleware/error.middleware.js";
 import { globalLimiter } from "./middleware/rateLimiter.js";
 import maintenanceMiddleware from "./middleware/maintenance.middleware.js";
 import socialRoutes from "./modules/social/social.routes.js";
+import userRoutes from "./modules/user/user.routes.js";
 
 const app = express();
 
@@ -128,6 +129,7 @@ app.use(trackingMiddleware);
  */
 app.use("/api/social", socialRoutes); // ⚡ High priority for multipart handling
 app.use("/api/auth", authRoutes);
+app.use("/api/user", userRoutes);
 
 // 🛠️ PLATFORM SECURITY: Maintenance Enforcement
 app.use(maintenanceMiddleware);

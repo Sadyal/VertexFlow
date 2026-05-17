@@ -11,6 +11,7 @@ import {
   sendEmail,
   generateVerifyEmailTemplate,
 } from "../../utils/email.js";
+import { logActivity } from "../../utils/activityLogger.js";
 
 /**
  * Utility: normalize email
@@ -25,6 +26,8 @@ const sanitizeUser = (user) => ({
   name: user.name,
   email: user.email,
   avatar: user.avatar,
+  bio: user.bio,
+  location: user.location,
   role: user.role,
 });
 
@@ -85,6 +88,8 @@ export const registerUser = async ({ name, email, password }) => {
   user.refreshToken = refreshToken;
   await user.save();
 
+  logActivity(user._id, "LOGIN", "New account registered and logged in");
+
   return {
     user: sanitizeUser(user),
     accessToken,
@@ -125,6 +130,8 @@ export const loginUser = async ({ email, password }) => {
 
   user.refreshToken = refreshToken;
   await user.save();
+
+  logActivity(user._id, "LOGIN", "User logged in successfully");
 
   return {
     user: sanitizeUser(user),
@@ -360,10 +367,12 @@ export const resetPasswordService = async ({
 /**
  * UPDATE PROFILE (NAME + AVATAR)
  */
-export const updateProfileService = async (userId, { name, avatar }) => {
+export const updateProfileService = async (userId, { name, avatar, bio, location }) => {
   const updateData = {};
   if (name) updateData.name = name.trim();
   if (avatar !== undefined) updateData.avatar = avatar;
+  if (bio !== undefined) updateData.bio = bio.trim();
+  if (location !== undefined) updateData.location = location.trim();
 
   const user = await userModel.findByIdAndUpdate(
     userId,
@@ -372,6 +381,9 @@ export const updateProfileService = async (userId, { name, avatar }) => {
   );
 
   if (!user) throw createError("User not found", 404);
+
+  const detail = name && avatar ? "Name and Avatar updated" : name ? "Name updated" : avatar ? "Avatar updated" : "Profile fields updated";
+  logActivity(userId, avatar ? "AVATAR_UPDATED" : "PROFILE_UPDATED", detail);
 
   return sanitizeUser(user);
 };

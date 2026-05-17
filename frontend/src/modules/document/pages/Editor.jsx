@@ -42,6 +42,7 @@ import { INSERT_IMAGE_COMMAND, $createImageNode } from './ImageNode.jsx';
 
 // VertexFlow Components & Utils
 import { documentApi } from '../doc.api';
+import { userApi } from '../../user/user.api';
 import Button from '../../../components/common/Button';
 import Skeleton from '../../../components/common/Skeleton';
 import FloatingAIButton from '../../../components/ai/FloatingAIButton';
@@ -251,6 +252,9 @@ const Editor = () => {
       };
 
       html2pdf().set(opt).from(tempElement).save();
+      
+      // 🚀 Log Activity
+      userApi.logActivity("DOC_DOWNLOADED", `Downloaded document as PDF: ${doc?.title || 'Untitled'}`);
     });
   };
 
@@ -301,6 +305,9 @@ const Editor = () => {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
+
+      // 🚀 Log Activity
+      userApi.logActivity("DOC_DOWNLOADED", `Downloaded document as DOCX: ${doc?.title || 'Untitled'}`);
     });
   };
 

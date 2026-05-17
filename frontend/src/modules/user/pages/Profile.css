@@ -164,6 +164,29 @@
   margin-top: 0.25rem;
 }
 
+.profile-email {
+  font-size: 1rem;
+}
+
+.profile-bio-preview {
+  font-size: 0.9rem;
+  max-width: 400px;
+  margin: 0.75rem auto 0 auto !important;
+  line-height: 1.5;
+  color: var(--text-secondary) !important;
+}
+
+.profile-location-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  margin-top: 0.5rem !important;
+  color: var(--accent-primary) !important;
+  font-weight: 600;
+}
+
 /* Stats Grid */
 .profile-pro-stats {
   display: flex;
@@ -353,14 +376,255 @@
   gap: 4px;
 }
 
+/* Heatmap Layout with Weekdays */
+.heatmap-outer-wrapper {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  margin-top: 1.5rem;
+}
+
+.heatmap-weekdays {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100px; /* Matches grid height */
+  padding-bottom: 5px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-align: right;
+  width: 25px;
+}
+
+.heatmap-weekdays span {
+  height: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.heatmap-wrapper {
+  flex: 1;
+  position: relative;
+  padding-top: 1.5rem;
+  min-width: 0;
+}
+
 .heatmap-cell {
   aspect-ratio: 1;
   border-radius: 2px;
   background: var(--bg-hover);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.2s;
 }
 
-.heatmap-cell.active { background: rgba(var(--accent-primary-rgb), 0.2); }
-.heatmap-cell.very-active { background: var(--accent-primary); }
+.heatmap-cell.is-empty {
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.heatmap-cell:hover:not(.is-empty) {
+  transform: scale(1.3);
+  z-index: 10;
+  box-shadow: 0 0 10px rgba(var(--accent-primary-rgb), 0.5);
+}
+
+/* Intensity Colors (Brightened for Visibility) */
+.heatmap-cell.intensity-1 { background: #004d1a; border-color: rgba(255,255,255,0.05); }
+.heatmap-cell.intensity-2 { background: #00802b; border-color: rgba(255,255,255,0.05); }
+.heatmap-cell.intensity-3 { background: #00b33c; border-color: rgba(255,255,255,0.05); }
+.heatmap-cell.intensity-4 { background: #00e64d; border-color: rgba(255,255,255,0.05); box-shadow: 0 0 10px rgba(0, 230, 77, 0.3); }
+
+/* Theme Adaptation for Light Mode */
+[data-theme='light'] .heatmap-cell {
+  background: #ebedf0;
+}
+[data-theme='light'] .heatmap-cell.intensity-1 { background: #9be9a8; }
+[data-theme='light'] .heatmap-cell.intensity-2 { background: #40c463; }
+[data-theme='light'] .heatmap-cell.intensity-3 { background: #30a14e; }
+[data-theme='light'] .heatmap-cell.intensity-4 { background: #216e39; }
+
+.heatmap-months {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 1rem;
+  display: flex;
+}
+
+.month-label {
+  position: absolute;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.heatmap-grid-standard {
+  display: grid;
+  grid-template-rows: repeat(7, 12px);
+  grid-auto-flow: column;
+  grid-auto-columns: 12px;
+  gap: 3px;
+  overflow-x: auto;
+  padding-bottom: 5px;
+}
+
+/* Custom Scrollbar for Heatmap */
+.heatmap-grid-standard::-webkit-scrollbar {
+  height: 4px;
+}
+.heatmap-grid-standard::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 10px;
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 1rem;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.heatmap-legend .heatmap-cell {
+  width: 10px;
+  height: 10px;
+}
+
+/* Activity Timeline */
+.section-header-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.section-header-compact h4 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.activity-count-badge {
+  font-size: 0.7rem;
+  background: rgba(var(--accent-primary-rgb), 0.1);
+  border: 1px solid rgba(var(--accent-primary-rgb), 0.2);
+  padding: 0.2rem 0.75rem;
+  border-radius: 20px;
+  color: var(--accent-primary);
+  font-weight: 700;
+}
+
+.activity-timeline {
+  display: flex;
+  flex-direction: column;
+  padding-left: 0.5rem;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 2rem;
+}
+
+.timeline-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 16px;
+}
+
+.marker-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 0.5rem;
+  position: relative;
+  z-index: 2;
+  border: 2px solid var(--bg-secondary);
+}
+
+.marker-line {
+  flex: 1;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--border-color), transparent);
+  margin: 0.5rem 0;
+}
+
+.timeline-content {
+  flex: 1;
+  padding-bottom: 2.5rem;
+}
+
+.timeline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.action-tag {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--accent-primary);
+  letter-spacing: 0.08em;
+  padding: 0.1rem 0.4rem;
+  background: rgba(var(--accent-primary-rgb), 0.05);
+  border-radius: 4px;
+}
+
+.timestamp {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.action-detail {
+  font-size: 1rem;
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.date-subtle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.date-subtle::before {
+  content: "";
+  width: 4px;
+  height: 4px;
+  background: var(--border-color);
+  border-radius: 50%;
+}
+
+.empty-state-mini {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.01) !important;
+  border: 1px dashed var(--border-color) !important;
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  gap: 1.25rem;
+}
 
 /* Switch Toggle (SaaS style) */
 .pro-switch {
