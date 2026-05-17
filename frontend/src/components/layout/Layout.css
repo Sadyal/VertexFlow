@@ -254,17 +254,31 @@
   .layout-container {
     padding: 0;
     gap: 0;
+    height: 100dvh !important;
+    overflow: hidden !important;
   }
   
   .main-area {
     gap: 0;
+    padding-top: 64px !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
   }
   
   .navbar {
-    border-radius: 0;
-    border-top: none;
-    border-left: none;
-    border-right: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 64px !important;
+    min-height: 64px !important;
+    z-index: 1001 !important;
+    border-radius: 0 !important;
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
   }
   
   .content-wrapper {

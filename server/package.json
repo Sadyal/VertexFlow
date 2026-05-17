@@ -6,8 +6,7 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js",
-    "cron-cleanup": "node scripts/cron-cleanup.js"
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",

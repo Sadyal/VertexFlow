@@ -124,7 +124,6 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: '0.95rem', padding: '0.4rem 0' }}
-            autoFocus
           />
           <button type="submit" disabled={!newMessage.trim()} style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--accent-primary)', border: 'none', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: !newMessage.trim() ? 0.5 : 1 }}>
             <Send size={16} />

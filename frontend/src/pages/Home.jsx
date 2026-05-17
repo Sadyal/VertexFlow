@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ROUTES } from '../utils/constants';
 import Button from '../components/common/Button';
 import { Sparkles, FileText, Zap, Shield, ArrowRight } from 'lucide-react';
+import './Home.css';
 
 const Home = () => {
   return (
@@ -50,7 +51,7 @@ const Home = () => {
           <span style={{ color: 'var(--accent-primary)', WebkitTextFillColor: 'initial' }}>Modern Intelligence.</span>
         </h1>
 
-        <p className="animate-slide-up" style={{ 
+        <p className="hero-description animate-slide-up" style={{ 
           fontSize: '1.25rem', 
           color: 'var(--text-secondary)', 
           maxWidth: '650px', 
@@ -121,7 +122,7 @@ const Home = () => {
             </p>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
+          <div className="features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
             <FeatureCard 
               icon={<Zap color="var(--accent-primary)" />} 
               title="Instant Sync" 
