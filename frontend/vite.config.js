@@ -4,6 +4,7 @@ import compression from 'vite-plugin-compression';
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: '/',
   plugins: [
     react(),
     // ✅ Gzip compression for all assets > 1 kB
