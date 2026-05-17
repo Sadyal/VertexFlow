@@ -1,5 +1,19 @@
 import express from "express";
-import { getDashboardStats, getUsersList, trackEvent, getDocsList, getSettings, updateSettings, runMaintenance, updateUser, deleteUser, updateDocument, deleteDocument } from "./admin.controller.js";
+import { 
+  getDashboardStats, 
+  getUsersList, 
+  trackEvent, 
+  getDocsList, 
+  getSettings, 
+  updateSettings, 
+  runMaintenance, 
+  updateUser, 
+  deleteUser, 
+  updateDocument, 
+  deleteDocument,
+  getPostsList,
+  deletePost
+} from "./admin.controller.js";
 import authMiddleware from "../../middleware/auth.middleware.js";
 import adminMiddleware from "../../middleware/admin.middleware.js";
 
@@ -25,8 +39,12 @@ router.get("/documents", getDocsList);
 router.put("/documents/:id", updateDocument);
 router.delete("/documents/:id", deleteDocument);
 
+router.get("/posts", getPostsList);
+router.delete("/posts/:id", deletePost);
+
 router.get("/settings", getSettings);
 router.put("/settings", updateSettings);
 router.post("/maintenance", runMaintenance);
+
 
 export default router;

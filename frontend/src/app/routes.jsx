@@ -32,6 +32,7 @@ const AdminUsers = lazy(() => import('../modules/admin/pages/AdminUsers'));
 const AdminDocs = lazy(() => import('../modules/admin/pages/AdminDocs'));
 const AdminAnalytics = lazy(() => import('../modules/admin/pages/AdminAnalytics'));
 const AdminSettings = lazy(() => import('../modules/admin/pages/AdminSettings'));
+const AdminSocial = lazy(() => import('../modules/admin/pages/AdminSocial'));
 
 
 const AppRoutes = () => {
@@ -68,6 +69,7 @@ const AppRoutes = () => {
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="documents" element={<AdminDocs />} />
+            <Route path="social" element={<AdminSocial />} />
             <Route path="analytics" element={<AdminAnalytics />} />
             <Route path="settings" element={<AdminSettings />} />
           </Route>

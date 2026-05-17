@@ -8,7 +8,8 @@ import {
   Settings, 
   LogOut,
   ShieldAlert,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react';
 
 const AdminSidebar = ({ isOpen, onClose }) => {
@@ -24,6 +25,7 @@ const AdminSidebar = ({ isOpen, onClose }) => {
     { path: '/admin', icon: LayoutDashboard, label: 'Overview', exact: true },
     { path: '/admin/users', icon: Users, label: 'User Management' },
     { path: '/admin/documents', icon: FileText, label: 'Documents' },
+    { path: '/admin/social', icon: MessageSquare, label: 'Social Hub' },
     { path: '/admin/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/admin/settings', icon: Settings, label: 'System Settings' }
   ];

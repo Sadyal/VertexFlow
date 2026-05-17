@@ -4,6 +4,12 @@ import { Search, ChevronLeft, ChevronRight, FileText, Lock, Globe, MoreVertical,
 import Loader from '../../../components/common/Loader';
 import '../admin.css';
 
+const getAvatarUrl = (avatar) => {
+  if (!avatar) return '';
+  if (avatar.startsWith('http') || avatar.startsWith('data:')) return avatar;
+  return `${import.meta.env.VITE_API_URL}${avatar}`;
+};
+
 const AdminDocs = () => {
   const [documents, setDocuments] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pages: 1 });
@@ -146,7 +152,7 @@ const AdminDocs = () => {
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ width: '24px', height: '24px', borderRadius: '50%', overflow: 'hidden', background: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '10px' }}>
-                            {doc.owner?.avatar ? <img src={doc.owner.avatar} alt="Owner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (doc.owner?.name?.charAt(0) || '?')}
+                            {doc.owner?.avatar ? <img src={getAvatarUrl(doc.owner.avatar)} alt="Owner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (doc.owner?.name?.charAt(0) || '?')}
                           </div>
                           <span style={{ fontSize: '0.85rem' }}>{doc.owner?.name || 'Unknown'}</span>
                         </div>

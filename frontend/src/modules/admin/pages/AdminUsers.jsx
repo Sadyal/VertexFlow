@@ -6,13 +6,27 @@ import Skeleton from '../../../components/common/Skeleton';
 import DeleteModal from '../../document/components/DeleteModal';
 import '../admin.css';
 
+const getAvatarUrl = (avatar) => {
+  if (!avatar) return '';
+  if (avatar.startsWith('http') || avatar.startsWith('data:')) return avatar;
+  return `${import.meta.env.VITE_API_URL}${avatar}`;
+};
+
 // 🚀 PERFORMANCE: Memoized Table Row to prevent re-renders during search
 const UserRow = memo(({ user, activeMenu, setActiveMenu, isProcessing, handleToggleRole, setShowDeleteModal }) => (
   <tr>
     <td>
       <div className="user-cell">
-        <div className="user-avatar-mini" style={{ background: user.role === 'admin' ? 'var(--accent-primary)' : 'var(--bg-tertiary)' }}>
-          {user.name.charAt(0)}
+        <div className="user-avatar-mini" style={{ background: user.role === 'admin' ? 'var(--accent-primary)' : 'var(--bg-tertiary)', overflow: 'hidden' }}>
+          {user.avatar ? (
+            <img 
+              src={getAvatarUrl(user.avatar)} 
+              alt={user.name} 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+            />
+          ) : (
+            user.name.charAt(0)
+          )}
         </div>
         <div>
           <div className="user-name">{user.name}</div>

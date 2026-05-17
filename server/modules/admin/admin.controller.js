@@ -362,3 +362,86 @@ export const deleteUser = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc    Get detailed posts list for moderation
+ * @route   GET /api/admin/posts
+ * @access  Private/Admin
+ */
+export const getPostsList = async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const startIndex = (page - 1) * limit;
+    const search = req.query.search || "";
+
+    let query = { isDeleted: { $ne: true } };
+
+    if (search) {
+      // Find users matching search to search by author, or search by post content
+      const matchingUsers = await User.find({
+        name: { $regex: search, $options: "i" }
+      }).select("_id");
+      
+      const userIds = matchingUsers.map(u => u._id);
+
+      query = {
+        isDeleted: { $ne: true },
+        $or: [
+          { content: { $regex: search, $options: "i" } },
+          { author: { $in: userIds } }
+        ]
+      };
+    }
+
+    const total = await Post.countDocuments(query);
+    const posts = await Post.find(query)
+      .populate('author', 'name email avatar')
+      .sort({ createdAt: -1 })
+      .skip(startIndex)
+      .limit(limit)
+      .lean();
+
+    // Map likesCount and commentsCount to fit the expected structure
+    const enrichedPosts = posts.map(post => ({
+      ...post,
+      likesCount: post.likes?.length || 0,
+      commentsCount: post.comments?.length || 0
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: enrichedPosts,
+      pagination: {
+        total,
+        page,
+        pages: Math.ceil(total / limit)
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Delete (soft-delete) post
+ * @route   DELETE /api/admin/posts/:id
+ * @access  Private/Admin
+ */
+export const deletePost = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const post = await Post.findById(id);
+    if (!post) {
+      return res.status(404).json({ success: false, message: "Post not found" });
+    }
+
+    post.isDeleted = true;
+    await post.save();
+
+    res.status(200).json({ success: true, message: "Post moderated and deleted successfully" });
+  } catch (error) {
+    next(error);
+  }
+};
+

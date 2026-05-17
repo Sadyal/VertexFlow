@@ -8,6 +8,7 @@ const adminCache = {
   dashboardStats: null,
   usersList: {}, // Map of page_search -> data
   docsList: {},  // Map of page_search -> data
+  postsList: {}, // Map of page_search -> data
 };
 
 /**

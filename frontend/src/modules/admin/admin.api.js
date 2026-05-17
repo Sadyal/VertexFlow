@@ -53,5 +53,21 @@ export const adminApi = {
   deleteDocument: async (id) => {
     const response = await api.delete(`/api/admin/documents/${id}`);
     return response.data;
+  },
+
+  getPostsList: async (page = 1, limit = 10, search = '') => {
+    const response = await api.get(`/api/admin/posts?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`);
+    return response.data;
+  },
+
+  deletePost: async (id) => {
+    const response = await api.delete(`/api/admin/posts/${id}`);
+    return response.data;
+  },
+
+  deleteComment: async (postId, commentId) => {
+    const response = await api.delete(`/api/social/posts/${postId}/comments/${commentId}`);
+    return response.data;
   }
 };
+
