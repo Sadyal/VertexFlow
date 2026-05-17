@@ -8,10 +8,7 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
   const [messages, setMessages] = useState(chatCache[friend._id] || []);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(!chatCache[friend._id]);
-  const [localOnline, setLocalOnline] = useState(isOnline);
   const scrollRef = useRef();
-
-  useEffect(() => { setLocalOnline(isOnline); }, [isOnline]);
 
   useEffect(() => {
     const fetchHistory = async () => {
@@ -88,11 +85,11 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
           )}
           <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--accent-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: 'white', position: 'relative' }}>
             {friend.avatar ? <img src={friend.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : friend.name.charAt(0).toUpperCase()}
-            <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--bg-secondary)', background: localOnline ? '#10b981' : '#6b7280' }} />
+            <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12px', height: '12px', borderRadius: '50%', border: '2px solid var(--bg-secondary)', background: isOnline ? '#10b981' : '#6b7280' }} />
           </div>
           <div>
             <h4 style={{ margin: 0, fontSize: '1rem' }}>{friend.name}</h4>
-            <span style={{ fontSize: '0.75rem', color: localOnline ? '#10b981' : 'var(--text-muted)' }}>{localOnline ? 'Online' : 'Offline'}</span>
+            <span style={{ fontSize: '0.75rem', color: isOnline ? '#10b981' : 'var(--text-muted)' }}>{isOnline ? 'Online' : 'Offline'}</span>
           </div>
         </div>
       </div>

@@ -71,6 +71,7 @@ const Network = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
     const SOCKET_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
     const s = io(SOCKET_URL, {
