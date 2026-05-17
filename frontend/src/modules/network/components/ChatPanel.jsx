@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { Send, ArrowLeft, MoreHorizontal, Smile, CornerUpLeft, Copy, Trash2, X } from 'lucide-react';
 import { networkApi } from '../network.api';
 
@@ -17,6 +17,251 @@ const parseReplyMessage = (content) => {
   }
   return { isReply: false, actualMessage: content };
 };
+
+// ⚡ HIGH-PERFORMANCE MEMOIZED MESSAGE BUBBLE
+const MessageItem = memo(({ 
+  msg, 
+  isMe, 
+  currentUser, 
+  friend,
+  isActive, 
+  isEmojiActive, 
+  isDropdownActive, 
+  onToggleOptions,
+  onAddReaction,
+  onRemoveReaction,
+  onReply,
+  onCopy,
+  onDelete
+}) => {
+  const { isReply, quotedText, actualMessage } = parseReplyMessage(msg.content);
+
+  return (
+    <div 
+      style={{ 
+        alignSelf: isMe ? 'flex-end' : 'flex-start', 
+        maxWidth: isActive ? 'calc(85% - 80px)' : '85%', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        alignItems: isMe ? 'flex-end' : 'flex-start',
+        position: 'relative',
+        transition: 'max-width 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+      }}
+    >
+      {/* Bubble and Actions Flex Row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexDirection: isMe ? 'row-reverse' : 'row' }}>
+        
+        {/* Message Bubble Container */}
+        <div 
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleOptions(msg._id);
+          }}
+          style={{ 
+            padding: '0.7rem 1rem', 
+            borderRadius: '18px', 
+            fontSize: '0.92rem', 
+            background: isMe ? 'var(--accent-primary)' : 'var(--bg-tertiary)', 
+            color: isMe ? 'white' : 'var(--text-primary)', 
+            borderBottomRightRadius: isMe ? '4px' : '18px', 
+            borderBottomLeftRadius: isMe ? '18px' : '4px', 
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            cursor: 'pointer',
+            userSelect: 'none',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            maxWidth: '100%'
+          }}
+        >
+          {isReply && (
+            <div style={{
+              background: isMe ? 'rgba(255,255,255,0.15)' : 'var(--bg-secondary)',
+              color: isMe ? 'rgba(255,255,255,0.9)' : 'var(--text-secondary)',
+              padding: '6px 10px',
+              borderRadius: '10px',
+              fontSize: '0.8rem',
+              borderLeft: `3px solid ${isMe ? 'white' : 'var(--accent-primary)'}`,
+              marginBottom: '4px',
+              fontStyle: 'italic',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              maxWidth: '240px'
+            }}>
+              {quotedText}
+            </div>
+          )}
+          
+          <div style={{ wordBreak: 'break-word' }}>{actualMessage}</div>
+          
+          {/* Floating Instagram Reaction Badge */}
+          {msg.reactions && msg.reactions.length > 0 && (
+            <div 
+              style={{
+                position: 'absolute',
+                bottom: '-10px',
+                [isMe ? 'right' : 'left']: '12px',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '12px',
+                padding: '2px 6px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
+                fontSize: '0.75rem',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                zIndex: 2,
+                userSelect: 'none'
+              }}
+            >
+              {msg.reactions.map((react, rIdx) => {
+                const isMine = react.user === (currentUser.id || currentUser._id);
+                return (
+                  <span 
+                    key={rIdx}
+                    style={{ cursor: 'pointer' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isMine) onRemoveReaction(msg._id);
+                    }}
+                    title={isMine ? "Click to remove your reaction" : "Reacted by friend"}
+                  >
+                    {react.emoji}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Options Tray (Smile, Arrow, Dots) next to bubble */}
+        {isActive && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
+            
+            {/* Smile Reaction button */}
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleOptions(msg._id, 'emoji');
+              }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+              title="React"
+            >
+              <Smile size={16} />
+            </button>
+
+            {/* Reply arrow button */}
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onReply(msg);
+              }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+              title="Reply"
+            >
+              <CornerUpLeft size={16} />
+            </button>
+
+            {/* Three dots button */}
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleOptions(msg._id, 'dropdown');
+              }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
+              title="More options"
+            >
+              <MoreHorizontal size={16} />
+            </button>
+
+            {/* Emoji Reaction Tray Overlays */}
+            {isEmojiActive && (
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  [isMe ? 'right' : 'left']: 0,
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '24px',
+                  padding: '4px 8px',
+                  display: 'flex',
+                  gap: '6px',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
+                  zIndex: 10,
+                  marginBottom: '6px'
+                }}
+              >
+                {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
+                  <button 
+                    key={emoji}
+                    onClick={() => onAddReaction(msg._id, emoji)}
+                    style={{ background: 'transparent', border: 'none', fontSize: '1.1rem', cursor: 'pointer', padding: '2px' }}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Action Dropdown Overlays (Copy & Delete) */}
+            {isDropdownActive && (
+              <div 
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  [isMe ? 'right' : 'left']: 0,
+                  background: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  padding: '4px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
+                  zIndex: 10,
+                  marginTop: '6px',
+                  minWidth: '100px'
+                }}
+              >
+                <button 
+                  onClick={() => onCopy(msg.content)}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', padding: '8px 12px', fontSize: '0.85rem', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', width: '100%' }}
+                >
+                  <Copy size={14} /> Copy
+                </button>
+                {isMe && (
+                  <button 
+                    onClick={() => onDelete(msg._id)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--error)', padding: '8px 12px', fontSize: '0.85rem', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', width: '100%' }}
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      
+      {/* Timestamp */}
+      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.2rem', opacity: 0.8, [isMe ? 'marginRight' : 'marginLeft']: '4px' }}>
+        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </span>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.msg === nextProps.msg &&
+    prevProps.isMe === nextProps.isMe &&
+    prevProps.isActive === nextProps.isActive &&
+    prevProps.isEmojiActive === nextProps.isEmojiActive &&
+    prevProps.isDropdownActive === nextProps.isDropdownActive
+  );
+});
 
 const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile }) => {
   const [messages, setMessages] = useState(chatCache[friend._id] || []);
@@ -149,8 +394,8 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
     return () => socket.off('receive-message-reaction', handleReceiveReaction);
   }, [socket]);
 
-  // Emojis handlers
-  const handleAddReaction = (msgId, emoji) => {
+  // Emojis handlers (optimised with useCallback)
+  const handleAddReaction = useCallback((msgId, emoji) => {
     if (socket) {
       socket.emit('message-reaction', { 
         messageId: msgId, 
@@ -160,9 +405,9 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
     }
     setActiveEmojiPicker(null);
     setActiveMsgOptions(null);
-  };
+  }, [socket, friend._id]);
 
-  const handleRemoveReaction = (msgId) => {
+  const handleRemoveReaction = useCallback((msgId) => {
     if (socket) {
       socket.emit('message-reaction', { 
         messageId: msgId, 
@@ -170,22 +415,37 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
         emoji: null 
       });
     }
-  };
+  }, [socket, friend._id]);
 
-  // Copy handler
-  const handleCopyMessage = (content) => {
+  // Copy handler (optimised with useCallback)
+  const handleCopyMessage = useCallback((content) => {
     const { actualMessage } = parseReplyMessage(content);
     navigator.clipboard.writeText(actualMessage);
     setActiveDropdown(null);
     setActiveMsgOptions(null);
-  };
+  }, []);
 
-  // Delete handler
-  const handleDeleteMessage = (msgId) => {
+  // Delete handler (optimised with useCallback)
+  const handleDeleteMessage = useCallback((msgId) => {
     setMessages(prev => prev.filter(m => m._id !== msgId));
     setActiveDropdown(null);
     setActiveMsgOptions(null);
-  };
+  }, []);
+
+  // Toggle handlers (optimised with useCallback)
+  const handleToggleOptions = useCallback((msgId, type = null) => {
+    setActiveMsgOptions(prev => prev === msgId && !type ? null : msgId);
+    if (type === 'emoji') {
+      setActiveEmojiPicker(prev => prev === msgId ? null : msgId);
+      setActiveDropdown(null);
+    } else if (type === 'dropdown') {
+      setActiveDropdown(prev => prev === msgId ? null : msgId);
+      setActiveEmojiPicker(null);
+    } else {
+      setActiveEmojiPicker(null);
+      setActiveDropdown(null);
+    }
+  }, []);
 
   return (
     <div 
@@ -246,230 +506,24 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
 
             {messages.map((msg, index) => {
               const isMe = (msg.sender._id || msg.sender).toString() === (currentUser.id || currentUser._id).toString();
-              const { isReply, quotedText, actualMessage } = parseReplyMessage(msg.content);
 
               return (
-                <div 
-                  key={msg._id || index} 
-                  style={{ 
-                    alignSelf: isMe ? 'flex-end' : 'flex-start', 
-                    maxWidth: '85%', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: isMe ? 'flex-end' : 'flex-start',
-                    position: 'relative'
-                  }}
-                >
-                  {/* Bubble and Actions Flex Row */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexDirection: isMe ? 'row-reverse' : 'row' }}>
-                    
-                    {/* Message Bubble Container */}
-                    <div 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setActiveMsgOptions(prev => prev === msg._id ? null : msg._id);
-                        setActiveEmojiPicker(null);
-                        setActiveDropdown(null);
-                      }}
-                      style={{ 
-                        padding: '0.7rem 1rem', 
-                        borderRadius: '18px', 
-                        fontSize: '0.92rem', 
-                        background: isMe ? 'var(--accent-primary)' : 'var(--bg-tertiary)', 
-                        color: isMe ? 'white' : 'var(--text-primary)', 
-                        borderBottomRightRadius: isMe ? '4px' : '18px', 
-                        borderBottomLeftRadius: isMe ? '18px' : '4px', 
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                        cursor: 'pointer',
-                        userSelect: 'none',
-                        position: 'relative',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '4px',
-                        maxWidth: activeMsgOptions === msg._id ? 'calc(100% - 80px)' : '100%',
-                        transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-                      }}
-                    >
-                      {isReply && (
-                        <div style={{
-                          background: isMe ? 'rgba(255,255,255,0.15)' : 'var(--bg-secondary)',
-                          color: isMe ? 'rgba(255,255,255,0.9)' : 'var(--text-secondary)',
-                          padding: '6px 10px',
-                          borderRadius: '10px',
-                          fontSize: '0.8rem',
-                          borderLeft: `3px solid ${isMe ? 'white' : 'var(--accent-primary)'}`,
-                          marginBottom: '4px',
-                          fontStyle: 'italic',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          maxWidth: '240px'
-                        }}>
-                          {quotedText}
-                        </div>
-                      )}
-                      
-                      <div style={{ wordBreak: 'break-word' }}>{actualMessage}</div>
-                      
-                      {/* Floating Instagram Reaction Badge */}
-                      {msg.reactions && msg.reactions.length > 0 && (
-                        <div 
-                          style={{
-                            position: 'absolute',
-                            bottom: '-10px',
-                            [isMe ? 'right' : 'left']: '12px',
-                            background: 'var(--bg-secondary)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '12px',
-                            padding: '2px 6px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '2px',
-                            fontSize: '0.75rem',
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                            zIndex: 2,
-                            userSelect: 'none'
-                          }}
-                        >
-                          {msg.reactions.map((react, rIdx) => {
-                            const isMine = react.user === (currentUser.id || currentUser._id);
-                            return (
-                              <span 
-                                key={rIdx}
-                                style={{ cursor: 'pointer' }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (isMine) handleRemoveReaction(msg._id);
-                                }}
-                                title={isMine ? "Click to remove your reaction" : "Reacted by friend"}
-                              >
-                                {react.emoji}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Options Tray (Smile, Arrow, Dots) next to bubble */}
-                    {activeMsgOptions === msg._id && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                        
-                        {/* Smile Reaction button */}
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveEmojiPicker(prev => prev === msg._id ? null : msg._id);
-                            setActiveDropdown(null);
-                          }}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                          title="React"
-                        >
-                          <Smile size={16} />
-                        </button>
-
-                        {/* Reply arrow button */}
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setReplyingTo(msg);
-                            setActiveMsgOptions(null);
-                          }}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                          title="Reply"
-                        >
-                          <CornerUpLeft size={16} />
-                        </button>
-
-                        {/* Three dots button */}
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveDropdown(prev => prev === msg._id ? null : msg._id);
-                            setActiveEmojiPicker(null);
-                          }}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' }}
-                          title="More options"
-                        >
-                          <MoreHorizontal size={16} />
-                        </button>
-
-                        {/* Emoji Reaction Tray Overlays */}
-                        {activeEmojiPicker === msg._id && (
-                          <div 
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              position: 'absolute',
-                              bottom: '100%',
-                              [isMe ? 'right' : 'left']: 0,
-                              background: 'var(--bg-secondary)',
-                              border: '1px solid var(--border-color)',
-                              borderRadius: '24px',
-                              padding: '4px 8px',
-                              display: 'flex',
-                              gap: '6px',
-                              boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
-                              zIndex: 10,
-                              marginBottom: '6px'
-                            }}
-                          >
-                            {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(emoji => (
-                              <button 
-                                key={emoji}
-                                onClick={() => handleAddReaction(msg._id, emoji)}
-                                style={{ background: 'transparent', border: 'none', fontSize: '1.1rem', cursor: 'pointer', padding: '2px' }}
-                              >
-                                {emoji}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Action Dropdown Overlays (Copy & Delete) */}
-                        {activeDropdown === msg._id && (
-                          <div 
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              position: 'absolute',
-                              top: '100%',
-                              [isMe ? 'right' : 'left']: 0,
-                              background: 'var(--bg-secondary)',
-                              border: '1px solid var(--border-color)',
-                              borderRadius: '8px',
-                              padding: '4px',
-                              display: 'flex',
-                              flexDirection: 'column',
-                              boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
-                              zIndex: 10,
-                              marginTop: '6px',
-                              minWidth: '100px'
-                            }}
-                          >
-                            <button 
-                              onClick={() => handleCopyMessage(msg.content)}
-                              style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', padding: '8px 12px', fontSize: '0.85rem', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', width: '100%' }}
-                            >
-                              <Copy size={14} /> Copy
-                            </button>
-                            {isMe && (
-                              <button 
-                                onClick={() => handleDeleteMessage(msg._id)}
-                                style={{ background: 'transparent', border: 'none', color: 'var(--error)', padding: '8px 12px', fontSize: '0.85rem', textAlign: 'left', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderRadius: '4px', width: '100%' }}
-                              >
-                                <Trash2 size={14} /> Delete
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Timestamp */}
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.2rem', opacity: 0.8, [isMe ? 'marginRight' : 'marginLeft']: '4px' }}>
-                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
+                <MessageItem
+                  key={msg._id || index}
+                  msg={msg}
+                  isMe={isMe}
+                  currentUser={currentUser}
+                  friend={friend}
+                  isActive={activeMsgOptions === msg._id}
+                  isEmojiActive={activeEmojiPicker === msg._id}
+                  isDropdownActive={activeDropdown === msg._id}
+                  onToggleOptions={handleToggleOptions}
+                  onAddReaction={handleAddReaction}
+                  onRemoveReaction={handleRemoveReaction}
+                  onReply={setReplyingTo}
+                  onCopy={handleCopyMessage}
+                  onDelete={handleDeleteMessage}
+                />
               );
             })}
           </>

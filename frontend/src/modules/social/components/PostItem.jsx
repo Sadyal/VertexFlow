@@ -3,6 +3,87 @@ import { Heart, MessageCircle, Share2, MoreHorizontal, Send, User as UserIcon, X
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../../context/AuthContext';
 
+// ⚡ HIGH-PERFORMANCE MEMOIZED COMMENT ROW
+const CommentRow = memo(({ comment, postAuthorId, currentUserId, isAdmin, onDeleteComment, postId }) => {
+  const isCommentOwner = comment.user?._id === currentUserId || comment.user?.id === currentUserId;
+  const canDeleteComment = isCommentOwner || postAuthorId === currentUserId || isAdmin;
+
+  return (
+    <div className="comment-item animate-slide-up">
+      <div className="author-avatar small-avatar" style={{ fontSize: '0.7rem' }}>
+        {comment.user?.avatar ? (
+          <img 
+            src={(comment.user.avatar.startsWith('http') || comment.user.avatar.startsWith('data:')) 
+              ? comment.user.avatar 
+              : `${import.meta.env.VITE_API_URL}${comment.user.avatar}`} 
+            alt={comment.user.name} 
+            loading="lazy"
+            width="24"
+            height="24"
+          />
+        ) : (
+          comment.user?.name?.charAt(0) || 'U'
+        )}
+      </div>
+      <div className="comment-bubble">
+        <div className="comment-author">{comment.user?.name || 'User'}</div>
+        <div className="comment-text">{comment.text}</div>
+        
+        {canDeleteComment && (
+          <div className="comment-actions">
+            <button 
+              className="delete-comment-btn"
+              onClick={() => {
+                if (window.confirm('Delete this comment?')) {
+                  onDeleteComment(postId, comment._id);
+                }
+              }}
+              aria-label="Delete comment"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.comment === nextProps.comment &&
+    prevProps.postAuthorId === nextProps.postAuthorId &&
+    prevProps.currentUserId === nextProps.currentUserId &&
+    prevProps.isAdmin === nextProps.isAdmin
+  );
+});
+
+// ⚡ HIGH-PERFORMANCE MEMOIZED COMMENTS LIST
+const CommentList = memo(({ comments, postAuthorId, currentUserId, isAdmin, onDeleteComment, postId }) => {
+  if (!comments || comments.length === 0) return null;
+
+  return (
+    <div className="comments-list">
+      {comments.map((comment) => (
+        <CommentRow
+          key={comment._id}
+          comment={comment}
+          postAuthorId={postAuthorId}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          onDeleteComment={onDeleteComment}
+          postId={postId}
+        />
+      ))}
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.comments === nextProps.comments &&
+    prevProps.postAuthorId === nextProps.postAuthorId &&
+    prevProps.currentUserId === nextProps.currentUserId &&
+    prevProps.isAdmin === nextProps.isAdmin
+  );
+});
+
 /**
  * 📝 POST ITEM COMPONENT
  * Wrapped in React.memo to prevent unnecessary re-renders when other posts change.
@@ -176,52 +257,14 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
       {/* COMMENTS */}
       {showComments && (
         <div className="comments-panel">
-          <div className="comments-list">
-            {post.comments?.map((comment) => {
-              const isCommentOwner = comment.user?._id === user?.id || comment.user?._id === user?._id;
-              const canDeleteComment = isCommentOwner || isPostOwner || isAdmin;
-
-              return (
-                <div key={comment._id} className="comment-item animate-slide-up">
-                  <div className="author-avatar small-avatar" style={{ fontSize: '0.7rem' }}>
-                    {comment.user?.avatar ? (
-                      <img 
-                        src={(comment.user.avatar.startsWith('http') || comment.user.avatar.startsWith('data:')) 
-                          ? comment.user.avatar 
-                          : `${import.meta.env.VITE_API_URL}${comment.user.avatar}`} 
-                        alt={comment.user.name} 
-                        loading="lazy"
-                        width="24"
-                        height="24"
-                      />
-                    ) : (
-                      comment.user?.name?.charAt(0) || 'U'
-                    )}
-                  </div>
-                  <div className="comment-bubble">
-                    <div className="comment-author">{comment.user?.name || 'User'}</div>
-                    <div className="comment-text">{comment.text}</div>
-                    
-                    {canDeleteComment && (
-                      <div className="comment-actions">
-                        <button 
-                          className="delete-comment-btn"
-                          onClick={() => {
-                            if (window.confirm('Delete this comment?')) {
-                              onDeleteComment(post._id, comment._id);
-                            }
-                          }}
-                          aria-label="Delete comment"
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <CommentList
+            comments={post.comments}
+            postAuthorId={post.author?._id}
+            currentUserId={user?.id || user?._id}
+            isAdmin={isAdmin}
+            onDeleteComment={onDeleteComment}
+            postId={post._id}
+          />
 
           <form className="comment-input-wrapper" onSubmit={handleCommentSubmit} style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.05)' }}>
             <div className="author-avatar small-avatar">

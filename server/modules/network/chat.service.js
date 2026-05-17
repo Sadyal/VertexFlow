@@ -78,13 +78,22 @@ export const markAsReadService = async (userId, friendId) => {
  * @description Add or update a reaction on a message. If emoji is empty or null, remove the user's reaction.
  */
 export const addReactionService = async (messageId, userId, emoji) => {
+  if (!messageId || typeof messageId !== 'string' || messageId.length !== 24 || messageId.startsWith('temp-')) {
+    throw createError("Invalid message reference", 400);
+  }
+
   const message = await Message.findById(messageId);
   if (!message) {
     throw createError("Message not found", 404);
   }
 
-  // Find if this user already reacted
-  const existingIndex = message.reactions.findIndex(r => r.user.toString() === userId.toString());
+  // Defensive array fallback initialization for older/legacy documents
+  if (!message.reactions) {
+    message.reactions = [];
+  }
+
+  // Find if this user already reacted safely
+  const existingIndex = message.reactions.findIndex(r => r && r.user && r.user.toString() === userId.toString());
 
   if (emoji) {
     if (existingIndex !== -1) {
