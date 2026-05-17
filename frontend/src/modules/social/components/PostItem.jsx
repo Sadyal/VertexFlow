@@ -119,7 +119,7 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
             decoding="async"
             width="600"
             height="400"
-            style={{ objectFit: 'cover', width: '100%', height: 'auto', aspectRatio: '16/9' }}
+            style={{ objectFit: 'contain', width: '100%', height: 'auto', maxHeight: '500px' }}
           />
         </div>
       )}

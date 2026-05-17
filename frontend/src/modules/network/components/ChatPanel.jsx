@@ -116,8 +116,7 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
         <div ref={scrollRef} />
       </div>
 
-      {/* INPUT */}
-      <form onSubmit={handleSend} style={{ padding: '1.25rem', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', flexShrink: 0 }}>
+      <form onSubmit={handleSend} style={{ padding: '1.25rem', paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border-color)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: '24px', padding: '0.4rem 0.5rem 0.4rem 1.25rem', border: '1px solid var(--border-color)' }}>
           <input 
             type="text" 

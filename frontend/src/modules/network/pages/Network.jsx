@@ -204,7 +204,7 @@ const Network = () => {
 
             <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', paddingLeft: '0.5rem' }}>Network</h2>
 
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '-1px' }}>
+            <div className="network-tabs-container">
               <button 
                 onClick={() => setActiveTab('chats')}
                 style={{ 
