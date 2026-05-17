@@ -8,16 +8,24 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
   const [messages, setMessages] = useState(chatCache[friend._id] || []);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(!chatCache[friend._id]);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const scrollRef = useRef();
 
   useEffect(() => {
+    setPage(1);
+    setHasMore(true);
     const fetchHistory = async () => {
       if (!chatCache[friend._id]) setIsLoading(true);
       try {
-        const response = await networkApi.getChatHistory(friend._id);
+        const response = await networkApi.getChatHistory(friend._id, 1);
         if (response.success) {
           setMessages(response.data);
           chatCache[friend._id] = response.data;
+          if (response.data.length < 50) {
+            setHasMore(false);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch chat history:", err);
@@ -29,8 +37,31 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
   }, [friend._id]);
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (page === 1) {
+      scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, page]);
+
+  const handleLoadMore = async () => {
+    if (isLoadingMore || !hasMore) return;
+    setIsLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const response = await networkApi.getChatHistory(friend._id, nextPage);
+      if (response.success) {
+        const olderMessages = response.data;
+        if (olderMessages.length < 50) {
+          setHasMore(false);
+        }
+        setMessages(prev => [...olderMessages, ...prev]);
+        setPage(nextPage);
+      }
+    } catch (err) {
+      console.error("Failed to load more messages:", err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   const handleSend = (e) => {
     e.preventDefault();
@@ -99,19 +130,44 @@ const ChatPanel = ({ friend, onClose, currentUser, isOnline, socket, isMobile })
         {isLoading ? (
           <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>Loading messages...</div>
         ) : (
-          messages.map((msg, index) => {
-            const isMe = (msg.sender._id || msg.sender).toString() === (currentUser.id || currentUser._id).toString();
-            return (
-              <div key={msg._id || index} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                <div style={{ padding: '0.7rem 1rem', borderRadius: '18px', fontSize: '0.92rem', background: isMe ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: isMe ? 'white' : 'var(--text-primary)', borderBottomRightRadius: isMe ? '4px' : '18px', borderBottomLeftRadius: isMe ? '18px' : '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                  {msg.content}
+          <>
+            {hasMore && (
+              <button 
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
+                style={{
+                  alignSelf: 'center',
+                  background: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--accent-primary)',
+                  padding: '0.5rem 1.25rem',
+                  borderRadius: '20px',
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  transition: 'all 0.2s',
+                  marginBottom: '1rem',
+                  outline: 'none'
+                }}
+              >
+                {isLoadingMore ? 'Loading older messages...' : 'Load Older Messages'}
+              </button>
+            )}
+
+            {messages.map((msg, index) => {
+              const isMe = (msg.sender._id || msg.sender).toString() === (currentUser.id || currentUser._id).toString();
+              return (
+                <div key={msg._id || index} style={{ alignSelf: isMe ? 'flex-end' : 'flex-start', maxWidth: '80%', display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ padding: '0.7rem 1rem', borderRadius: '18px', fontSize: '0.92rem', background: isMe ? 'var(--accent-primary)' : 'var(--bg-tertiary)', color: isMe ? 'white' : 'var(--text-primary)', borderBottomRightRadius: isMe ? '4px' : '18px', borderBottomLeftRadius: isMe ? '18px' : '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                    {msg.content}
+                  </div>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.2rem', opacity: 0.8 }}>
+                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
                 </div>
-                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.2rem', opacity: 0.8 }}>
-                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-            );
-          })
+              );
+            })}
+          </>
         )}
         <div ref={scrollRef} />
       </div>
