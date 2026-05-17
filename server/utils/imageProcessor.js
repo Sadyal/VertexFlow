@@ -50,3 +50,36 @@ export const processPostImage = async (fileBuffer) => {
     throw new Error('Failed to process and upload image');
   }
 };
+
+export const processDocImage = async (fileBuffer) => {
+  try {
+    const processedBuffer = await sharp(fileBuffer)
+      .resize(1600, null, { // Docs can have slightly larger images
+        withoutEnlargement: true,
+        fit: 'inside'
+      })
+      .webp({ quality: 80 })
+      .toBuffer();
+
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: "vertexflow/docs",
+          public_id: `doc-img-${uuidv4()}`,
+          resource_type: "image",
+        },
+        (error, result) => {
+          if (error) {
+            console.error('❌ Cloudinary Stream Error:', error);
+            return reject(new Error('Cloudinary upload failed'));
+          }
+          resolve(result.secure_url);
+        }
+      );
+      uploadStream.end(processedBuffer);
+    });
+  } catch (error) {
+    console.error('❌ Doc Image Processing Error:', error);
+    throw new Error('Failed to process and upload document image');
+  }
+};

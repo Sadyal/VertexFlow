@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext } from 'react';
+import { createContext, useState, useEffect, useContext, useMemo } from 'react';
 import { authApi } from '../modules/auth/auth.api';
 import { storage } from '../utils/storage';
 import { db } from '../utils/db';
@@ -143,17 +143,19 @@ export const AuthProvider = ({ children }) => {
   // ==========================================
   // RENDER LOGIC
   // ==========================================
+  const contextValue = useMemo(() => ({
+    user, 
+    userAvatar,
+    isAuthenticated: !!user, 
+    isAdmin: user?.role === 'admin',
+    isInitializing, 
+    setUser: handleSetUser,
+    updateAvatar,
+    fetchUser: checkSession
+  }), [user, userAvatar, isInitializing]);
+
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      userAvatar,
-      isAuthenticated: !!user, 
-      isAdmin: user?.role === 'admin',
-      isInitializing, 
-      setUser: handleSetUser,
-      updateAvatar,
-      fetchUser: checkSession
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

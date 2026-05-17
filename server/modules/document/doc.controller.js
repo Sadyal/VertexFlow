@@ -127,3 +127,20 @@ export const deleteDoc = async (req, res, next) => {
     return next(err);
   }
 };
+
+import { processDocImage } from "../../utils/imageProcessor.js";
+
+export const uploadDocImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "No image provided" });
+    }
+    const imageUrl = await processDocImage(req.file.buffer);
+    return res.status(200).json({
+      success: true,
+      data: { url: imageUrl },
+    });
+  } catch (err) {
+    return next(err);
+  }
+};

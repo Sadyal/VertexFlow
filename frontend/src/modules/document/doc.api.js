@@ -58,13 +58,24 @@ export const documentApi = {
     return response.data;
   },
 
-  /**
-   * Deletes a document.
-   * @param {string} id - The document ID to delete.
-   * @returns {Promise<Object>} API response payload confirming delete status.
-   */
   deleteDoc: async (id) => {
     const response = await api.delete(`${API_ENDPOINTS.DOCS}/${id}`);
+    return response.data;
+  },
+
+  /**
+   * Uploads an image to the CDN for embedding in a document.
+   * @param {File} file - The image file object
+   * @returns {Promise<Object>} API response payload containing the CDN URL
+   */
+  uploadImage: async (file) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await api.post(`${API_ENDPOINTS.DOCS}/upload-image`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   }
 };

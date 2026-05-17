@@ -9,6 +9,7 @@
   display: flex;
   flex-direction: column;
   padding: 1rem;
+  border-radius: inherit;
   /* Clean margin from app edges */
   background: var(--bg-primary);
 }
@@ -21,11 +22,11 @@
 .messenger-container {
   flex: 1;
   display: flex;
-  background: var(--bg-secondary);
+  background: var(--bg-tertiary);
   border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--border-color);
-  box-shadow: var(--shadow-xl);
+  box-shadow: var(--shadow-lg);
   min-height: 0;
 }
 
@@ -33,12 +34,13 @@
 
 
 .messenger-sidebar {
-  width: 350px;
-  background: rgba(0, 0, 0, 0.2);
+  width: 320px;
+  background: var(--bg-elevated);
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border-color);
   flex-shrink: 0;
+  z-index: 10;
 }
 
 .messenger-chat-area {
@@ -58,6 +60,9 @@
   justify-content: center;
   text-align: center;
   background: var(--bg-primary);
+  /* Added a subtle pattern for better empty state UI */
+  background-image: radial-gradient(var(--border-color) 1px, transparent 1px);
+  background-size: 30px 30px;
 }
 
 
@@ -100,21 +105,21 @@
   gap: 1rem;
 }
 
-/* User Connection Card */
 .user-connection-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.03);
+  padding: 0.8rem 1rem;
+  background: transparent;
   border-radius: var(--radius-md);
   border: 1px solid transparent;
   transition: all var(--transition-fast);
 }
 
 .user-connection-card:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-hover);
   border-color: var(--border-color);
+  transform: translateX(4px);
 }
 
 .user-info {
@@ -184,24 +189,38 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1rem;
-  background: var(--bg-secondary);
+  padding: 0.8rem 1rem;
+  background: transparent;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-color);
+  border: 1px solid transparent;
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
 .friend-list-item:hover {
-  background: var(--bg-tertiary);
-  transform: translateX(5px);
-  border-color: var(--accent-primary);
+  background: var(--bg-hover);
+  transform: translateX(4px);
 }
 
 .friend-list-item.active {
-  background: rgba(var(--accent-primary-rgb), 0.1);
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 15px rgba(var(--accent-primary-rgb), 0.1);
+  background: var(--bg-active);
+  color: var(--text-primary);
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+  position: relative;
+}
+
+.friend-list-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 60%;
+  width: 4px;
+  background: var(--accent-primary);
+  border-radius: 0 4px 4px 0;
+  box-shadow: var(--shadow-glow);
 }
 
 .friend-item-main {
@@ -253,7 +272,7 @@
 }
 
 .unread-badge {
-  background: #ef4444;
+  background: var(--accent-primary);
   color: white;
   font-size: 0.7rem;
   font-weight: 700;
@@ -264,7 +283,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.4);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
 }
 
 .last-message-preview {
@@ -346,21 +365,21 @@
 
 .online-indicator {
   position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 12px;
-  height: 12px;
+  bottom: 0;
+  right: 0;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
-  border: 2px solid var(--bg-tertiary);
+  border: 2px solid var(--bg-secondary);
 }
 
 .online-indicator.active {
   background: #10b981;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
 }
 
 .online-indicator.offline {
-  background: #6b7280;
+  background: var(--text-muted);
 }
 
 .friend-actions {
@@ -535,12 +554,12 @@
 
 .chat-messages {
   flex: 1;
-  padding: 1rem;
+  padding: 1.5rem;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  background: rgba(0, 0, 0, 0.1);
+  gap: 1rem;
+  background: transparent;
 }
 
 .message-wrapper {
@@ -560,11 +579,12 @@
 }
 
 .message-bubble {
-  padding: 0.6rem 1rem;
-  border-radius: 18px;
-  font-size: 0.9rem;
-  line-height: 1.4;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  line-height: 1.5;
   transition: all var(--transition-fast);
+  box-shadow: var(--shadow-sm);
 }
 
 .message-wrapper.is-temp {
@@ -572,13 +592,13 @@
 }
 
 .me .message-bubble {
-  background: var(--accent-primary);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
   color: white;
   border-bottom-right-radius: 4px;
 }
 
 .them .message-bubble {
-  background: var(--bg-tertiary);
+  background: var(--bg-elevated);
   color: var(--text-primary);
   border-bottom-left-radius: 4px;
   border: 1px solid var(--border-color);
@@ -591,7 +611,7 @@
 }
 
 .chat-input-area {
-  padding: 1rem;
+  padding: 1rem 1.5rem;
   display: flex;
   gap: 0.75rem;
   background: var(--bg-secondary);
@@ -602,10 +622,16 @@
   flex: 1;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  padding: 0.6rem 1rem;
+  border-radius: var(--radius-lg);
+  padding: 0.75rem 1.25rem;
   color: var(--text-primary);
   outline: none;
+  font-size: 0.95rem;
+  transition: border-color var(--transition-fast);
+}
+
+.chat-input-area input:focus {
+  border-color: var(--accent-primary);
 }
 
 .send-btn {

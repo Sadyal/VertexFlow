@@ -26,17 +26,17 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            // React Core – tiny, cached forever
-            if (id.includes('react-dom') || (id.includes('react') && !id.includes('react-router'))) {
+            // 🚀 PRIORITY: Editor (heavy, must not bleed into react core via @lexical/react)
+            if (id.includes('lexical') || id.includes('@lexical') || id.includes('prismjs')) {
+              return 'vendor-editor';
+            }
+            // React Core – tiny, cached forever (safeguard against substring matches like @lexical/react)
+            if (id.includes('/react/') || id.includes('/react-dom/')) {
               return 'vendor-react';
             }
             // Router
             if (id.includes('react-router')) {
               return 'vendor-router';
-            }
-            // Editor (heavy, isolated to /docs/:id route)
-            if (id.includes('lexical') || id.includes('@lexical') || id.includes('prismjs')) {
-              return 'vendor-editor';
             }
             // Icons – tree-shaken by Vite automatically
             if (id.includes('lucide-react')) {

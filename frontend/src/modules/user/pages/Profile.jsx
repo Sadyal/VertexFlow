@@ -20,7 +20,7 @@ const Profile = () => {
   const { user, userAvatar, setUser, updateAvatar: updateGlobalAvatar } = useAuth();
   
   // 🚀 TABS STATE
-  const [activeTab, setActiveTab] = useState('general'); // 'general' | 'security' | 'activity' | 'billing'
+  const [activeTab, setActiveTab] = useState('general'); // 'general' | 'activity'
   
   // 🚀 ORIGINAL LOGIC (PRESERVED)
   const [isSaving, setIsSaving] = useState(false);
@@ -30,6 +30,8 @@ const Profile = () => {
   const [stats, setStats] = useState({ documents: 0, shared: 0 });
   const [activityLogs, setActivityLogs] = useState([]);
   const [heatmapStats, setHeatmapStats] = useState([]);
+  const [isStatsLoading, setIsStatsLoading] = useState(true);
+  const [isActivityLoading, setIsActivityLoading] = useState(true);
 
   // ⚡ PERFORMANCE FIX: Map raw heatmap stats to the grid
   const heatmapData = useMemo(() => {
@@ -73,14 +75,11 @@ const Profile = () => {
     return { cells: data, labels: months, totalCols: 53 };
   }, [heatmapStats]);
 
-  useEffect(() => {
-    if (user?.name) setName(user.name);
-    if (user?.bio) setBio(user.bio);
-    if (user?.location) setLocation(user.location);
-  }, [user]);
+  // Removed state-syncing effect to prevent cascading renders (initialized from context)
 
   useEffect(() => {
     const fetchStats = async () => {
+      setIsStatsLoading(true);
       try {
         const response = await documentApi.getDocs();
         if (response.success) {
@@ -95,6 +94,8 @@ const Profile = () => {
         }
       } catch (err) {
         console.error("Failed to fetch profile stats:", err);
+      } finally {
+        setIsStatsLoading(false);
       }
     };
     if (user) fetchStats();
@@ -103,6 +104,7 @@ const Profile = () => {
   // 🚀 FETCH ACTIVITY LOGS
   useEffect(() => {
     const fetchActivity = async () => {
+      setIsActivityLoading(true);
       try {
         const [logRes, heatRes] = await Promise.all([
           userApi.getActivity(),
@@ -113,6 +115,8 @@ const Profile = () => {
         if (heatRes.success) setHeatmapStats(heatRes.data.heatmap);
       } catch (err) {
         console.error("Failed to fetch activity data:", err);
+      } finally {
+        setIsActivityLoading(false);
       }
     };
     if (user) fetchActivity();
@@ -238,45 +242,7 @@ const Profile = () => {
     </div>
   );
 
-  const renderSecurity = () => (
-    <div className="profile-section-card glass-panel animate-slide-up">
-      <div className="pro-card-header">
-        <h3><Shield size={20} className="text-accent" /> Security & Privacy</h3>
-      </div>
-      <div className="pro-card-body">
-        <div className="pro-feature-row">
-          <div className="pro-feature-info">
-            <div className="pro-feature-icon-box"><Smartphone size={20} /></div>
-            <div className="pro-feature-text">
-              <h4>Two-Factor Authentication</h4>
-              <p>Add an extra layer of security to your account.</p>
-            </div>
-          </div>
-          <span className="badge-active">ACTIVE</span>
-        </div>
-        <div className="pro-feature-row">
-          <div className="pro-feature-info">
-            <div className="pro-feature-icon-box"><Globe size={20} /></div>
-            <div className="pro-feature-text">
-              <h4>Browser Sessions</h4>
-              <p>Manage your active sessions on different devices.</p>
-            </div>
-          </div>
-          <Button variant="secondary" size="small">Manage</Button>
-        </div>
-        <div className="pro-feature-row">
-          <div className="pro-feature-info">
-            <div className="pro-feature-icon-box"><Shield size={20} /></div>
-            <div className="pro-feature-text">
-              <h4>Data Encryption</h4>
-              <p>All your documents are encrypted at rest and in transit.</p>
-            </div>
-          </div>
-          <CheckCircle size={20} className="text-success" />
-        </div>
-      </div>
-    </div>
-  );
+
 
   const renderActivity = () => (
     <div className="profile-section-card glass-panel animate-slide-up">
@@ -334,7 +300,13 @@ const Profile = () => {
           </div>
           
           <div className="activity-timeline">
-            {activityLogs.length > 0 ? (
+            {isActivityLoading ? (
+              <>
+                <div className="skeleton-line" style={{ height: '60px', marginBottom: '1rem', borderRadius: 'var(--radius-md)' }}></div>
+                <div className="skeleton-line" style={{ height: '60px', marginBottom: '1rem', borderRadius: 'var(--radius-md)' }}></div>
+                <div className="skeleton-line" style={{ height: '60px', marginBottom: '1rem', borderRadius: 'var(--radius-md)' }}></div>
+              </>
+            ) : activityLogs.length > 0 ? (
               activityLogs.map((log, index) => (
                 <div key={log._id || index} className="timeline-item animate-slide-up" style={{ animationDelay: `${index * 0.05}s` }}>
                   <div className="timeline-marker">
@@ -363,35 +335,7 @@ const Profile = () => {
     </div>
   );
 
-  const renderBilling = () => (
-    <div className="profile-section-card glass-panel animate-slide-up">
-      <div className="pro-card-header">
-        <h3><CreditCard size={20} className="text-accent" /> Plan & Subscription</h3>
-      </div>
-      <div className="pro-card-body">
-        <div className="pro-feature-row" style={{ background: 'rgba(var(--accent-primary-rgb), 0.05)', borderColor: 'var(--accent-primary)' }}>
-          <div className="pro-feature-info">
-            <div className="pro-feature-icon-box" style={{ background: 'var(--accent-primary)' }}><Zap size={20} color="white" /></div>
-            <div className="pro-feature-text">
-              <h4>LiveSync Pro Plan</h4>
-              <p>Unlimited documents, collaborators, and priority support.</p>
-            </div>
-          </div>
-          <span className="badge-pro">PRO</span>
-        </div>
-        <div className="pro-pro-stats" style={{ marginTop: '1.5rem' }}>
-          <div className="pro-stat-box">
-             <span className="pro-stat-value">$12.00</span>
-             <span className="pro-stat-label">Next Payment</span>
-          </div>
-          <div className="pro-stat-box">
-             <span className="pro-stat-value">Aug 24</span>
-             <span className="pro-stat-label">Billing Date</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+
 
   return (
     <div className="profile-container animate-fade-in">
@@ -405,18 +349,8 @@ const Profile = () => {
           <button className={`profile-nav-btn ${activeTab === 'general' ? 'active' : ''}`} onClick={() => setActiveTab('general')}>
             <User size={18} /> General
           </button>
-          <button className={`profile-nav-btn ${activeTab === 'security' ? 'active' : ''}`} onClick={() => setActiveTab('security')}>
-            <Shield size={18} /> Security
-          </button>
           <button className={`profile-nav-btn ${activeTab === 'activity' ? 'active' : ''}`} onClick={() => setActiveTab('activity')}>
             <Activity size={18} /> Activity
-          </button>
-          <button className={`profile-nav-btn ${activeTab === 'billing' ? 'active' : ''}`} onClick={() => setActiveTab('billing')}>
-            <CreditCard size={18} /> Billing
-          </button>
-          <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '1rem 0' }} />
-          <button className="profile-nav-btn text-error" style={{ opacity: 0.7 }}>
-            <LogOut size={18} /> Deactivate
           </button>
         </aside>
 
@@ -449,27 +383,35 @@ const Profile = () => {
               </div>
               
               <div className="profile-pro-stats">
-                <div className="pro-stat-box">
-                  <span className="pro-stat-value">{stats.documents}</span>
-                  <span className="pro-stat-label">DOCUMENTS</span>
-                </div>
-                <div className="pro-stat-box">
-                  <span className="pro-stat-value">{stats.shared}</span>
-                  <span className="pro-stat-label">SHARED</span>
-                </div>
-                <div className="pro-stat-box">
-                  <span className="pro-stat-value">99.9%</span>
-                  <span className="pro-stat-label">UPTIME</span>
-                </div>
+                {isStatsLoading ? (
+                  <>
+                    <div className="pro-stat-box skeleton-box" style={{ minHeight: '90px' }}></div>
+                    <div className="pro-stat-box skeleton-box" style={{ minHeight: '90px' }}></div>
+                    <div className="pro-stat-box skeleton-box" style={{ minHeight: '90px' }}></div>
+                  </>
+                ) : (
+                  <>
+                    <div className="pro-stat-box">
+                      <span className="pro-stat-value">{stats.documents}</span>
+                      <span className="pro-stat-label">DOCUMENTS</span>
+                    </div>
+                    <div className="pro-stat-box">
+                      <span className="pro-stat-value">{stats.shared}</span>
+                      <span className="pro-stat-label">SHARED</span>
+                    </div>
+                    <div className="pro-stat-box">
+                      <span className="pro-stat-value">99.9%</span>
+                      <span className="pro-stat-label">UPTIME</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
           {/* TAB CONTENT */}
           {activeTab === 'general' && renderGeneral()}
-          {activeTab === 'security' && renderSecurity()}
           {activeTab === 'activity' && renderActivity()}
-          {activeTab === 'billing' && renderBilling()}
 
         </section>
       </main>

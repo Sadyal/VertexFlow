@@ -9,9 +9,9 @@ import Loader from '../components/common/Loader';
 // Initial bundle ships zero page-level code
 // ==========================================
 
-// Auth (small pages, but still lazy to minimise entry chunk)
-const Login = lazy(() => import('../modules/auth/pages/Login'));
-const Register = lazy(() => import('../modules/auth/pages/Register'));
+// Auth (small pages, eagerly loaded for ultra-fast initial auth flow)
+import Login from '../modules/auth/pages/Login';
+import Register from '../modules/auth/pages/Register';
 const VerifyEmail = lazy(() => import('../modules/auth/pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('../modules/auth/pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('../modules/auth/pages/ResetPassword'));

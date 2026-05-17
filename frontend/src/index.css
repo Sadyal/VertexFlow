@@ -6,45 +6,46 @@
   /* ==========================================
      DEFAULT: PREMIUM DARK THEME (DEEP NAVY/CHARCOAL)
      ========================================== */
-  --bg-primary: #050508;
-  --bg-secondary: #0d0d14;
-  --bg-tertiary: #161622;
+  --bg-primary: #000000;
+  --bg-secondary: #0a0a0a;
+  --bg-tertiary: #121212;
+  --bg-elevated: #1a1a1a;
   
-  --accent-primary: #6366f1;
+  --accent-primary: #5e6ad2; /* Rich indigo/purple */
   --accent-secondary: #8b5cf6;
-  --accent-hover: #4f46e5;
-  --accent-glow: rgba(99, 102, 241, 0.5);
-  --accent-light: rgba(99, 102, 241, 0.1);
+  --accent-hover: #4b55c3;
+  --accent-glow: rgba(94, 106, 210, 0.4);
+  --accent-light: rgba(94, 106, 210, 0.1);
   
   --success: #10b981;
   --warning: #f59e0b;
   --error: #ef4444;
   
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #ffffff;
+  --text-secondary: #a1a1aa; /* Softer, cooler gray */
+  --text-muted: #71717a;
   
-  --border-color: rgba(255, 255, 255, 0.06);
-  --border-highlight: rgba(255, 255, 255, 0.12);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-highlight: rgba(255, 255, 255, 0.15);
   
-  --shadow-sm: 0 2px 4px rgba(0,0,0,0.3);
-  --shadow-md: 0 10px 20px -5px rgba(0,0,0,0.5), 0 5px 10px -5px rgba(0,0,0,0.3);
-  --shadow-lg: 0 30px 60px -12px rgba(0,0,0,0.6), 0 18px 36px -18px rgba(0,0,0,0.4);
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
+  --shadow-sm: 0 2px 4px rgba(0,0,0,0.8);
+  --shadow-md: 0 8px 16px rgba(0,0,0,0.6);
+  --shadow-lg: 0 16px 32px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05); /* Outer border shadow for depth */
+  --shadow-glow: 0 0 20px rgba(94, 106, 210, 0.2);
   
-  --glass-bg: rgba(13, 13, 20, 0.7);
-  --glass-panel-bg: rgba(22, 22, 34, 0.4);
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-bg: rgba(10, 10, 10, 0.6);
+  --glass-panel-bg: rgba(20, 20, 20, 0.5);
+  --glass-border: rgba(255, 255, 255, 0.06);
   
-  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-hover: rgba(255, 255, 255, 0.04);
   --bg-active: rgba(255, 255, 255, 0.08);
-  --border-subtle: rgba(255, 255, 255, 0.04);
-  --glass-overlay: rgba(0, 0, 0, 0.4);
+  --border-subtle: rgba(255, 255, 255, 0.03);
+  --glass-overlay: rgba(0, 0, 0, 0.6);
   
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 24px;
-  --radius-xl: 32px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
   
   --transition-fast: 0.2s cubic-bezier(0.23, 1, 0.32, 1);
   --transition-normal: 0.4s cubic-bezier(0.23, 1, 0.32, 1);
@@ -62,6 +63,7 @@
   --bg-primary: #f0f2f5;      /* Subtle off-white base */
   --bg-secondary: #ffffff;    /* Pure white for elevated panels */
   --bg-tertiary: #e2e8f0;     /* Grey for deeper nesting */
+  --bg-elevated: #ffffff;     /* Pure white for hovered/elevated elements */
   
   --accent-primary: #4f46e5;
   --accent-secondary: #7c3aed;
@@ -247,6 +249,24 @@ input, textarea {
 .animate-spin {
   animation: spin 0.8s linear infinite;
   will-change: transform;
+}
+
+/* Skeleton Loading UI */
+.skeleton-box, .skeleton-line {
+  background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-elevated) 50%, var(--bg-tertiary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: var(--radius-sm);
+}
+
+.skeleton-box {
+  width: 100%;
+  height: 100%;
+}
+
+.skeleton-line {
+  width: 100%;
+  height: 1rem;
 }
 
 /* 🚀 PERFORMANCE: Skip rendering off-screen content */

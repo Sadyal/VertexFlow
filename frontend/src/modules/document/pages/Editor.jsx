@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Share2, Save, ChevronLeft, Trash2, Download, MoreVertical, Sparkles
@@ -116,6 +116,7 @@ const Editor = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState(null);
   const [socket, setSocket] = useState(null);
+  const titleTimeoutRef = useRef(null);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -134,6 +135,25 @@ const Editor = () => {
       AutoLinkNode, LinkNode, HorizontalRuleNode, ImageNode
     ]
   }), []);
+
+  const handleEditorReady = useCallback((editor) => {
+    setEditorInstance(editor);
+    editor.registerCommand(
+      INSERT_IMAGE_COMMAND,
+      (payload) => {
+        editor.update(() => {
+          const { src, altText } = payload;
+          const imageNode = $createImageNode({ src, altText });
+          const selection = $getSelection();
+          if ($isRangeSelection(selection)) {
+            selection.insertNodes([imageNode]);
+          }
+        });
+        return true;
+      },
+      COMMAND_PRIORITY_EDITOR
+    );
+  }, []);
 
   // 2. Socket Connection
   useEffect(() => {
@@ -312,23 +332,34 @@ const Editor = () => {
   };
 
   useEffect(() => {
-    const handlePaste = (e) => {
+    const handlePaste = async (e) => {
       if (!editorInstance) return;
       
       const items = e.clipboardData?.items;
       if (items) {
+        let hasImage = false;
         for (let i = 0; i < items.length; i++) {
           if (items[i].type.indexOf('image') !== -1) {
+            hasImage = true;
             const file = items[i].getAsFile();
-            const reader = new FileReader();
-            reader.onload = (event) => {
-              editorInstance.dispatchCommand(INSERT_IMAGE_COMMAND, {
-                src: event.target.result,
-                altText: 'Pasted Image'
-              });
-            };
-            reader.readAsDataURL(file);
+            
+            try {
+              // 🚀 Switch from base64 encoding to CDN uploading to prevent DB bloat
+              const response = await documentApi.uploadImage(file);
+              if (response.success && response.data?.url) {
+                editorInstance.dispatchCommand(INSERT_IMAGE_COMMAND, {
+                  src: response.data.url,
+                  altText: 'Pasted Image'
+                });
+              }
+            } catch (err) {
+              console.error('Failed to upload pasted image:', err);
+            }
           }
+        }
+        
+        if (hasImage) {
+          e.preventDefault(); // Prevent default base64 paste behavior
         }
       }
     };
@@ -354,7 +385,11 @@ const Editor = () => {
               onChange={(e) => {
                 const newTitle = e.target.value;
                 setDoc({...doc, title: newTitle});
-                if (socket) socket.emit('update-title', newTitle);
+                
+                if (titleTimeoutRef.current) clearTimeout(titleTimeoutRef.current);
+                titleTimeoutRef.current = setTimeout(() => {
+                  if (socket) socket.emit('update-title', newTitle);
+                }, 1000);
               }}
               placeholder="Document Title"
             />
@@ -474,26 +509,7 @@ const Editor = () => {
             />
           </div>
 
-          <EditorCapturePlugin 
-            onEditorReady={(editor) => {
-              setEditorInstance(editor);
-              editor.registerCommand(
-                INSERT_IMAGE_COMMAND,
-                (payload) => {
-                  editor.update(() => {
-                    const { src, altText } = payload;
-                    const imageNode = $createImageNode({ src, altText });
-                    const selection = $getSelection();
-                    if ($isRangeSelection(selection)) {
-                      selection.insertNodes([imageNode]);
-                    }
-                  });
-                  return true;
-                },
-                COMMAND_PRIORITY_EDITOR
-              );
-            }} 
-          />
+          <EditorCapturePlugin onEditorReady={handleEditorReady} />
 
           <HistoryPlugin />
           <ListPlugin />

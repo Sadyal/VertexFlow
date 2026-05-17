@@ -6,12 +6,16 @@ import {
   renameDoc,
   shareDoc,
   deleteDoc,
+  uploadDocImage,
 } from "./doc.controller.js";
 
 import authMiddleware from "../../middleware/auth.middleware.js";
 import verifyDocAccessMiddleware from "../../middleware/verifyDocAccess.middleware.js"; // ✅ FIXED
 
+import multer from "multer";
+
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 /**
  * 🔐 Global auth (required)
@@ -28,6 +32,9 @@ router.post("/", createDoc);
 router.patch("/:id", renameDoc);
 router.delete("/:id", deleteDoc);
 router.post("/:id/share", shareDoc);
+
+// 🖼️ Image Upload Endpoint
+router.post("/upload-image", upload.single("image"), uploadDocImage);
 
 /**
  * 🔐 Access-controlled route
