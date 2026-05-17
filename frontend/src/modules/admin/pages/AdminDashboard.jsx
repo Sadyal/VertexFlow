@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { adminApi } from '../admin.api';
 import { useAdminData } from '../admin.hooks';
-import { Users, FileText, Activity, ServerCrash, Clock, Zap, Database } from "lucide-react";
+import { Users, FileText, Activity, ServerCrash, Clock, Zap, Database, Heart, MessageCircle } from "lucide-react";
 import Loader from "../../../components/common/Loader";
 import "../admin.css";
 
@@ -26,7 +26,7 @@ const AdminDashboard = () => {
   if (error && !stats) return <div className="admin-error-full">{error}</div>;
 
   // Use fallback values if stats is not yet loaded (but since we show loader if !stats, this is safe)
-  const { users = {}, documents = {}, analytics = [] } = stats || {};
+  const { users = {}, documents = {}, social = {}, analytics = [] } = stats || {};
 
   // Find max for chart scaling
   const maxCalls = Math.max(...analytics.map(d => d.apiCalls || 0), 100);
@@ -141,7 +141,47 @@ const AdminDashboard = () => {
 
         {/* SIDE PANELS */}
         <div className="side-panels">
-          <div className="glass-panel health-panel animate-slide-in-up" style={{ animationDelay: '0.5s' }}>
+          {/* COMMUNITY ENGAGEMENT PANEL */}
+          <div className="glass-panel health-panel animate-slide-in-up" style={{ animationDelay: '0.5s', marginBottom: '1.5rem' }}>
+            <h3 className="panel-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              Community Engagement
+            </h3>
+            <div className="health-list">
+              <div className="health-item">
+                <div className="health-icon-bg blue"><Users size={16} /></div>
+                <div className="health-info">
+                  <span className="health-name">Thoughts & Posts</span>
+                  <span className="health-status">Total platform ideas</span>
+                </div>
+                <span className="health-latency" style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>
+                  {social.totalPosts || 0}
+                </span>
+              </div>
+              <div className="health-item">
+                <div className="health-icon-bg purple"><Heart size={16} /></div>
+                <div className="health-info">
+                  <span className="health-name">Total Likes</span>
+                  <span className="health-status">Community support</span>
+                </div>
+                <span className="health-latency" style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>
+                  {social.totalLikes || 0}
+                </span>
+              </div>
+              <div className="health-item">
+                <div className="health-icon-bg green"><MessageCircle size={16} /></div>
+                <div className="health-info">
+                  <span className="health-name">Thread Comments</span>
+                  <span className="health-status">Conversations sparked</span>
+                </div>
+                <span className="health-latency" style={{ color: 'var(--text-primary)', fontWeight: 'bold' }}>
+                  {social.totalComments || 0}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* NODE HEALTH PANEL */}
+          <div className="glass-panel health-panel animate-slide-in-up" style={{ animationDelay: '0.6s' }}>
             <h3 className="panel-title">Node Health</h3>
             <div className="health-list">
               <div className="health-item">

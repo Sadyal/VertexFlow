@@ -42,7 +42,9 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
     }
   };
 
+  const isAdmin = user?.role === 'admin';
   const isPostOwner = post.author?._id === user?.id || post.author?._id === user?._id;
+  const canDeletePost = isPostOwner || isAdmin;
 
   return (
     <article className="post-card animate-fade-in" style={{ contentVisibility: 'auto', containIntrinsicSize: '0 400px' }}>
@@ -85,7 +87,7 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
               <button className="dropdown-item">
                 <Share2 size={16} /> Share Post
               </button>
-              {isPostOwner && (
+              {canDeletePost && (
                 <button 
                   className="dropdown-item danger" 
                   onClick={() => {
@@ -177,7 +179,7 @@ const PostItem = memo(({ post, onLike, onComment, onDelete, onDeleteComment, pri
           <div className="comments-list">
             {post.comments?.map((comment) => {
               const isCommentOwner = comment.user?._id === user?.id || comment.user?._id === user?._id;
-              const canDeleteComment = isCommentOwner || isPostOwner;
+              const canDeleteComment = isCommentOwner || isPostOwner || isAdmin;
 
               return (
                 <div key={comment._id} className="comment-item animate-slide-up">

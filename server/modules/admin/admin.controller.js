@@ -2,6 +2,7 @@ import User from "../../models/user.model.js";
 import Document from "../../models/document.model.js";
 import Analytics from "../../models/analytics.model.js";
 import Settings from "../../models/settings.model.js";
+import Post from "../../models/post.model.js";
 
 /**
  * @desc    Get dashboard overview statistics
@@ -11,7 +12,7 @@ import Settings from "../../models/settings.model.js";
 export const getDashboardStats = async (req, res, next) => {
   try {
     // 🚀 PERFORMANCE OPTIMIZATION: Run all counts and queries in parallel
-    const [totalUsers, verifiedUsers, recentUsers, totalDocs, docStats, analyticsData] = await Promise.all([
+    const [totalUsers, verifiedUsers, recentUsers, totalDocs, docStats, analyticsData, totalPosts, socialStats] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ isAccountVerified: true }),
       User.countDocuments({ createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }),
@@ -24,10 +25,23 @@ export const getDashboardStats = async (req, res, next) => {
           }
         }
       ]),
-      Analytics.find().sort({ date: -1 }).limit(7).lean()
+      Analytics.find().sort({ date: -1 }).limit(7).lean(),
+      Post.countDocuments({ isDeleted: { $ne: true } }),
+      Post.aggregate([
+        { $match: { isDeleted: { $ne: true } } },
+        {
+          $group: {
+            _id: null,
+            totalLikes: { $sum: { $size: { $ifNull: ["$likes", []] } } },
+            totalComments: { $sum: { $size: { $ifNull: ["$comments", []] } } }
+          }
+        }
+      ])
     ]);
 
     const totalCollaborations = docStats.length > 0 ? docStats[0].totalCollabs : 0;
+    const totalLikes = socialStats.length > 0 ? socialStats[0].totalLikes : 0;
+    const totalComments = socialStats.length > 0 ? socialStats[0].totalComments : 0;
 
     // Create a map of existing data
     const analyticsMap = new Map(analyticsData.map(item => [item.date, item]));
@@ -59,6 +73,11 @@ export const getDashboardStats = async (req, res, next) => {
         documents: {
           total: totalDocs,
           totalCollaborations
+        },
+        social: {
+          totalPosts,
+          totalLikes,
+          totalComments
         },
         analytics: lastSevenDays
       }

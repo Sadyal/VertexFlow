@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Post from "../../models/post.model.js";
+import User from "../../models/user.model.js";
 import { processPostImage } from "../../utils/imageProcessor.js";
 
 /**
@@ -203,8 +204,11 @@ export const deletePost = async (req, res, next) => {
     const post = await Post.findById(id);
     if (!post) return res.status(404).json({ success: false, message: "Post not found" });
 
-    // Only author can delete post
-    if (post.author.toString() !== userId) {
+    // Only author OR admin can delete post
+    const userObj = await User.findById(userId).select("role");
+    const isAdmin = userObj && userObj.role === "admin";
+
+    if (post.author.toString() !== userId && !isAdmin) {
       return res.status(403).json({ success: false, message: "Unauthorized to delete this post" });
     }
 
@@ -233,11 +237,13 @@ export const deleteComment = async (req, res, next) => {
 
     const comment = post.comments[commentIndex];
 
-    // Permission check: Comment author OR Post author can delete
+    // Permission check: Comment author OR Post author OR admin can delete
+    const userObj = await User.findById(userId).select("role");
+    const isAdmin = userObj && userObj.role === "admin";
     const isCommentAuthor = comment.user.toString() === userId;
     const isPostAuthor = post.author.toString() === userId;
 
-    if (!isCommentAuthor && !isPostAuthor) {
+    if (!isCommentAuthor && !isPostAuthor && !isAdmin) {
       return res.status(403).json({ success: false, message: "Unauthorized to delete this comment" });
     }
 
