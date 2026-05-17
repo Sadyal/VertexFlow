@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../../context/AuthContext';
+import { useLogout } from '../../../modules/auth/auth.hooks';
 import { 
   LayoutDashboard, 
   Users, 
@@ -7,15 +7,16 @@ import {
   BarChart3, 
   Settings, 
   LogOut,
-  ShieldAlert
+  ShieldAlert,
+  X
 } from 'lucide-react';
 
-const AdminSidebar = () => {
-  const { setUser } = useAuth();
+const AdminSidebar = ({ isOpen, onClose }) => {
+  const { logout } = useLogout();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    setUser(null);
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -28,13 +29,21 @@ const AdminSidebar = () => {
   ];
 
   return (
-    <aside className="admin-sidebar">
+    <aside className={`admin-sidebar ${isOpen ? 'mobile-open' : ''}`}>
       <div className="admin-sidebar-header">
         <div className="admin-brand">
           <ShieldAlert size={24} color="var(--accent-primary)" />
           <span>VertexFlow</span>
           <span className="admin-badge">Admin</span>
         </div>
+        <button 
+          className="admin-mobile-close-btn" 
+          onClick={onClose} 
+          aria-label="Close Sidebar"
+          style={{ display: 'none', background: 'transparent', border: 'none', cursor: 'pointer', marginLeft: 'auto' }}
+        >
+          <X size={24} color="var(--text-primary)" />
+        </button>
       </div>
 
       <nav className="admin-nav">
@@ -43,6 +52,7 @@ const AdminSidebar = () => {
             key={item.path}
             to={item.path}
             end={item.exact}
+            onClick={onClose}
             className={({ isActive }) => `admin-nav-link ${isActive ? 'active' : ''}`}
           >
             <item.icon size={20} className="admin-nav-icon" />

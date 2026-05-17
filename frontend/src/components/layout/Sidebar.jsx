@@ -28,6 +28,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         <NavLink 
           to={ROUTES.DASHBOARD} 
           end
+          onClick={onClose}
           className={({ isActive }) => isActive ? 'sidebar-nav-item active' : 'sidebar-nav-item'}
         >
           <LayoutDashboard size={20} />
@@ -35,6 +36,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         </NavLink>
         <NavLink 
           to={ROUTES.PROFILE} 
+          onClick={onClose}
           className={({ isActive }) => isActive ? 'sidebar-nav-item active' : 'sidebar-nav-item'}
         >
           <User size={20} />
@@ -42,6 +44,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         </NavLink>
         <NavLink 
           to="/network" 
+          onClick={onClose}
           className={({ isActive }) => isActive ? 'sidebar-nav-item active' : 'sidebar-nav-item'}
         >
           <Users size={20} />
@@ -49,6 +52,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         </NavLink>
         <NavLink 
           to="/social" 
+          onClick={onClose}
           className={({ isActive }) => isActive ? 'sidebar-nav-item active' : 'sidebar-nav-item'}
         >
           <Globe size={20} />
