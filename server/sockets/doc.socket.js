@@ -26,8 +26,8 @@ export const registerDocHandlers = (io, socket) => {
     return false;
   };
 
-  // LOAD DOCUMENT
-  socket.on("get-document", async (docId) => {
+  // LOAD DOCUMENT (With granular SRE Presence & Awareness setup)
+  socket.on("get-document", async (docId, userMetadata) => {
     try {
       if (!docId) return;
 
@@ -48,8 +48,45 @@ export const registerDocHandlers = (io, socket) => {
         return socket.emit("access-denied");
       }
 
+      // 🛡️ SRE Leave previous document room if switching documents on the same socket connection!
+      if (socket.currentDoc && socket.currentDoc !== docId) {
+        const oldDoc = socket.currentDoc;
+        socket.leave(oldDoc);
+        socket.broadcast.to(oldDoc).emit("presence-left", {
+          socketId: socket.id,
+          userId: socket.userId
+        });
+      }
+
       socket.join(docId);
       socket.currentDoc = docId;
+      
+      // Store SRE User metadata directly on the socket object context
+      socket.userMetadata = userMetadata || { name: "Collaborator", avatar: "", color: "#22c55e" };
+      socket.presenceStatus = "online";
+      socket.isTyping = false;
+      socket.lastSeen = Date.now();
+
+      // 1. Fetch other active sockets in this room to compile full presence list
+      const sockets = await io.in(docId).fetchSockets();
+      const members = sockets.map(s => ({
+        socketId: s.id,
+        userId: s.userId,
+        ...s.userMetadata,
+        status: s.presenceStatus || "online",
+        isTyping: s.isTyping || false,
+        cursor: s.cursorPosition || null
+      }));
+      socket.emit("presence-list", members);
+
+      // 2. Broadcast presence-joined to other members in the room
+      socket.broadcast.to(docId).emit("presence-joined", {
+        socketId: socket.id,
+        userId: socket.userId,
+        ...socket.userMetadata,
+        status: "online",
+        isTyping: false
+      });
 
       socket.emit("load-document", doc.content || "");
       
@@ -59,6 +96,24 @@ export const registerDocHandlers = (io, socket) => {
       console.error("❌ get-document error:", err.message);
       socket.emit("server-error");
     }
+  });
+
+  // REAL-TIME PRESENCE & AWARENESS BROADCASTER
+  socket.on("presence-update", (update) => {
+    if (!socket.currentDoc) return;
+    
+    socket.presenceStatus = update.status || socket.presenceStatus;
+    if (update.isTyping !== undefined) socket.isTyping = update.isTyping;
+    if (update.cursor !== undefined) socket.cursorPosition = update.cursor;
+    socket.lastSeen = Date.now();
+
+    socket.broadcast.to(socket.currentDoc).emit("presence-updated", {
+      socketId: socket.id,
+      userId: socket.userId,
+      status: socket.presenceStatus,
+      isTyping: socket.isTyping,
+      cursor: update.cursor || null
+    });
   });
 
   // REAL-TIME CHANGES (NO DUPLICATE LISTENERS)
@@ -113,6 +168,7 @@ export const registerDocHandlers = (io, socket) => {
         { returnDocument: 'before' }
       );
 
+      socket.emit("save-confirmed", { docId: socket.currentDoc });
       logActivity(userId, "DOC_EDITED", `Edited document: ${doc.title || 'Untitled'}`);
     } catch (err) {
       console.error("❌ save-document error:", err.message);

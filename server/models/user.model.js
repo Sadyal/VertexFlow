@@ -76,6 +76,11 @@ const userSchema = new mongoose.Schema(
       default: "",
       select: false,
     },
+    sessionVersion: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
 
     // 🧾 OPTIONAL PROFILE
     avatar: {

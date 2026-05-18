@@ -3,8 +3,8 @@ import jwt from "jsonwebtoken";
 /**
  * Access Token (short-lived)
  */
-export const generateAccessToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+export const generateAccessToken = (userId, sessionVersion = 0) => {
+  return jwt.sign({ id: userId, sessionVersion }, process.env.JWT_SECRET, {
     expiresIn: "15m",
   });
 };
@@ -12,8 +12,8 @@ export const generateAccessToken = (userId) => {
 /**
  * Refresh Token (long-lived)
  */
-export const generateRefreshToken = (userId) => {
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+export const generateRefreshToken = (userId, sessionVersion = 0) => {
+  return jwt.sign({ id: userId, sessionVersion }, process.env.JWT_SECRET, {
     expiresIn: "7d",
   });
 };

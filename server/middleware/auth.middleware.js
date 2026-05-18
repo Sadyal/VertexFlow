@@ -1,12 +1,14 @@
 import { verifyToken } from "../utils/token.js";
+import redis from "../config/redis.js";
+import userModel from "../models/user.model.js";
 
 /**
- * 🔐 AUTH MIDDLEWARE
+ * 🔐 AUTH MIDDLEWARE (Enterprise-grade Session Versioning)
  * Supports:
  * - Cookies (browser)
  * - Bearer token (Postman / mobile)
  */
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
     let token;
 
@@ -47,9 +49,55 @@ const authMiddleware = (req, res, next) => {
     }
 
     /**
-     * 🔹 5. Attach user
+     * 🔹 5. Enterprise Session Validation
+     */
+    const tokenVersion = decoded.sessionVersion;
+    if (tokenVersion === undefined) {
+      return next({
+        status: 401,
+        message: "Unauthorized: Session metadata missing",
+      });
+    }
+
+    let activeVersion = null;
+    const redisKey = `session_version:${decoded.id}`;
+
+    if (redis && redis.status === "ready") {
+      const cached = await redis.get(redisKey);
+      if (cached !== null) {
+        activeVersion = parseInt(cached, 10);
+      }
+    }
+
+    if (activeVersion === null) {
+      // Graceful fallback to MongoDB
+      const user = await userModel.findById(decoded.id).select("+sessionVersion");
+      if (!user) {
+        return next({
+          status: 401,
+          message: "Unauthorized: User not found",
+        });
+      }
+      activeVersion = user.sessionVersion || 0;
+
+      // Cache the version in Redis for fast future queries
+      if (redis && redis.status === "ready") {
+        await redis.set(redisKey, activeVersion, "EX", 86400); // Cache for 24h
+      }
+    }
+
+    if (tokenVersion !== activeVersion) {
+      return next({
+        status: 401,
+        message: "Unauthorized: Session is stale or has been invalidated",
+      });
+    }
+
+    /**
+     * 🔹 6. Attach user context
      */
     req.userId = decoded.id;
+    req.sessionVersion = tokenVersion;
 
     next();
   } catch (err) {

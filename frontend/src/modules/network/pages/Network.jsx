@@ -88,7 +88,7 @@ const Network = () => {
       clearInterval(heartbeatInterval);
       s.disconnect();
     };
-  }, []);
+  }, [user?._id || user?.id]);
 
   useEffect(() => {
     if (!socket) return;

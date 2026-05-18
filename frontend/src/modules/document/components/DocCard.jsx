@@ -5,6 +5,9 @@ import { ROUTES } from '../../../utils/constants';
 import ShareModal from './ShareModal';
 import RenameModal from './RenameModal';
 import DeleteModal from './DeleteModal';
+import { documentApi } from '../doc.api';
+import { db } from '../../../utils/db';
+import { useAuth } from '../../../context/AuthContext';
 import './DocumentUI.css';
 
 /**
@@ -14,6 +17,7 @@ import './DocumentUI.css';
  * unless 'doc' prop explicitly changes).
  */
 const DocCard = memo(({ doc, onDelete, onRename }) => {
+  const { user } = useAuth();
   // ==========================================
   // STATE MANAGEMENT
   // ==========================================
@@ -51,12 +55,35 @@ const DocCard = memo(({ doc, onDelete, onRename }) => {
     setIsDeleteModalOpen(true);
   };
 
+  // 🚀 SRE Warm Hover Prefetching Handler
+  const handleMouseEnter = async () => {
+    const docId = doc._id || doc.id;
+    const currentUserId = user?._id || user?.id;
+    if (!docId || !currentUserId) return;
+
+    try {
+      // Avoid redundant API requests if local cache already exists
+      const cached = await db.getDocument(docId, currentUserId);
+      if (cached) return;
+
+      const res = await documentApi.getDocById(docId);
+      if (res.success && res.data?.content) {
+        await db.saveDocument(docId, res.data.content, currentUserId);
+      }
+    } catch (err) {
+      console.warn(`[Prefetch] Skipping warm load for doc ${docId}:`, err);
+    }
+  };
+
   // ==========================================
   // RENDER LOGIC
   // ==========================================
   return (
     <>
-      <div className="doc-card glass-panel animate-fade-in">
+      <div 
+        className="doc-card glass-panel animate-fade-in"
+        onMouseEnter={handleMouseEnter}
+      >
         <Link to={ROUTES.EDITOR(doc._id || doc.id)} className="doc-card-link">
           
           {/* Document Preview Area */}

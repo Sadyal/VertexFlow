@@ -113,6 +113,13 @@ export default function setupSocket(server) {
     socket.on("disconnect", async () => {
       console.log("⛔ Disconnected:", socket.id);
       
+      if (socket.currentDoc) {
+        socket.broadcast.to(socket.currentDoc).emit("presence-left", {
+          socketId: socket.id,
+          userId: socket.userId
+        });
+      }
+      
       const isLastConnection = await removeUserSocket(io, userId, socket.id);
       if (isLastConnection) {
         await broadcastPresence(io, userId, false);

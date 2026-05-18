@@ -89,8 +89,8 @@ app.use(globalLimiter); // 🚀 Apply to all routes
  * 🍪 COOKIE PARSER & BODY LIMITS
  */
 app.use(cookieParser());
-app.use(express.json({ limit: "64kb" })); // 🛡️ Production-Grade: 64kb default limit
-app.use(express.urlencoded({ extended: true, limit: "64kb" }));
+app.use(express.json({ limit: "2mb" })); // 🛡️ SRE Production Upgrade: 2mb limit to support avatar uploads
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 app.use(malformedJsonHandler); // Gracefully handle malformed bodies
 app.use(payloadSanitizer);    // Block nesting and array bombs
 

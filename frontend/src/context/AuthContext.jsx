@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useContext, useMemo } from 'react';
+import { createContext, useState, useEffect, useContext, useMemo, useRef } from 'react';
 import { authApi } from '../modules/auth/auth.api';
 import { storage } from '../utils/storage';
 import { db } from '../utils/db';
@@ -30,14 +30,17 @@ export const useAuth = () => {
  */
 export const AuthProvider = ({ children }) => {
   // ==========================================
-  // STATE MANAGEMENT
+  // STATE MANAGEMENT & REFERENCES
   // ==========================================
   const [user, setUser] = useState(() => storage.get('user', null));
   const [userAvatar, setUserAvatar] = useState(null);
   const [isInitializing, setIsInitializing] = useState(() => !localStorage.getItem('user'));
+  
+  const authChannelRef = useRef(null);
+  const lastCheckedRef = useRef(Date.now());
 
-  // Helper to update user state and persistence
-  const handleSetUser = (userData) => {
+  // Helper to update user state and persistence (With circular broadcast prevention)
+  const handleSetUser = (userData, isBroadcast = true) => {
     setUser((prev) => {
       const nextUser = typeof userData === 'function' ? userData(prev) : userData;
       if (nextUser) {
@@ -50,11 +53,26 @@ export const AuthProvider = ({ children }) => {
           db.saveUserAsset('avatar', avatar);
           setUserAvatar(avatar);
         }
+
+        if (isBroadcast && authChannelRef.current) {
+          const prevId = prev?._id || prev?.id;
+          const nextId = nextUser?._id || nextUser?.id;
+          if (prevId !== nextId) {
+            authChannelRef.current.postMessage({
+              type: 'LOGIN',
+              payload: { userId: nextId }
+            });
+          }
+        }
       } else {
         storage.remove('user');
         storage.remove('user_avatar');
         db.clearAll();
         setUserAvatar(null);
+
+        if (isBroadcast && authChannelRef.current) {
+          authChannelRef.current.postMessage({ type: 'LOGOUT' });
+        }
       }
       return nextUser;
     });
@@ -73,6 +91,7 @@ export const AuthProvider = ({ children }) => {
   // LIFECYCLE / SESSION CHECK
   // ==========================================
   const checkSession = async () => {
+    lastCheckedRef.current = Date.now();
     try {
       console.log('📡 AuthContext: Checking session...');
       
@@ -84,10 +103,10 @@ export const AuthProvider = ({ children }) => {
       if (response.success) {
         console.log('✅ AuthContext: Session valid', response.data.user?.email || '');
         const userData = response.data.user || response.data;
-        handleSetUser(userData);
+        handleSetUser(userData, false); // Fetching user context directly doesn't need rebroadcasting
       } else {
         console.warn('⚠️ AuthContext: Session invalid (success false)');
-        handleSetUser(null);
+        handleSetUser(null, false);
       }
     } catch (err) {
       // 🚀 ROBUST ERROR CHECK:
@@ -99,7 +118,7 @@ export const AuthProvider = ({ children }) => {
 
       if (isUnauthorized) {
         console.log('📡 AuthContext: No active session (Unauthorized).');
-        handleSetUser(null);
+        handleSetUser(null, false);
       } else {
         console.warn('⚠️ AuthContext: Non-auth error or network issue during session check.', err?.message || 'Unknown error');
       }
@@ -109,35 +128,65 @@ export const AuthProvider = ({ children }) => {
   };
 
   useEffect(() => {
+    // 🖥️ Create Enterprise Auth Synchronization Channel
+    const channel = new BroadcastChannel('vertexflow_auth');
+    authChannelRef.current = channel;
+
+    const handleAuthMessage = (e) => {
+      const { type, payload } = e.data || {};
+      console.log('📡 BroadcastChannel Auth Event:', type, payload);
+
+      if (type === 'LOGOUT' || type === 'TOKEN_INVALIDATED') {
+        console.warn('📡 Active session terminated elsewhere. Synchronizing...');
+        handleSetUser(null, false); // Clear locally without rebroadcasting
+      } else if (type === 'LOGIN' || type === 'SESSION_CHANGED') {
+        console.log('📡 Session changed in another tab. Fetching details...');
+        checkSession();
+      }
+    };
+
+    channel.addEventListener('message', handleAuthMessage);
+
+    // Initial load
     checkSession();
 
     // 🎧 Listen for global unauthorized events (from axios interceptor)
     const handleUnauthorized = () => {
       console.warn('📡 Unauthorized access detected. Clearing session.');
-      handleSetUser(null);
+      handleSetUser(null, true); // Broadcast to all other tabs
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
-    
-    // 🖥️ Sync logout across multiple tabs
-    const handleStorageChange = (e) => {
-      if (e.key === 'user' && !e.newValue) {
-        console.warn('📡 Session cleared in another tab. Logging out...');
-        setUser(null);
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
 
     return () => {
+      channel.removeEventListener('message', handleAuthMessage);
+      channel.close();
       window.removeEventListener('auth:unauthorized', handleUnauthorized);
-      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  // 👁️ Tab Visibility Change Revalidation (10s debounce)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        const now = Date.now();
+        if (now - lastCheckedRef.current > 10000) {
+          console.log('👁️ Tab active. Revalidating active session version...');
+          checkSession();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
 
   const updateAvatar = (newAvatar) => {
     setUserAvatar(newAvatar);
     db.saveUserAsset('avatar', newAvatar);
-    handleSetUser(prev => prev ? { ...prev, avatar: newAvatar } : prev);
+    handleSetUser(prev => prev ? { ...prev, avatar: newAvatar } : prev, false);
   };
 
   // ==========================================

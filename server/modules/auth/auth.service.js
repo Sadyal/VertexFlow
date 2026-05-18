@@ -13,6 +13,7 @@ import {
 } from "../../utils/email.js";
 import { logActivity } from "../../utils/activityLogger.js";
 import { processAvatarImage } from "../../utils/imageProcessor.js";
+import redis from "../../config/redis.js";
 
 /**
  * Utility: normalize email
@@ -93,6 +94,7 @@ export const registerUser = async ({ name, email, password }) => {
     verifyOtp: otp,
     verifyOtpExpireAt: Date.now() + 15 * 60 * 1000, // 🚀 15 mins (was 24h)
     isAccountVerified: false,
+    sessionVersion: 1,
   });
 
   sendEmail({
@@ -102,11 +104,15 @@ export const registerUser = async ({ name, email, password }) => {
   }).catch((err) => console.error("Registration email failed:", err));
 
   // 🔐 Issue tokens immediately (optional UX improvement)
-  const accessToken = generateAccessToken(user._id);
-  const refreshToken = generateRefreshToken(user._id);
+  const accessToken = generateAccessToken(user._id, user.sessionVersion);
+  const refreshToken = generateRefreshToken(user._id, user.sessionVersion);
 
   user.refreshToken = refreshToken;
   await user.save();
+
+  if (redis && redis.status === "ready") {
+    await redis.set(`session_version:${user._id}`, user.sessionVersion, "EX", 86400); // 24h cache
+  }
 
   logActivity(user._id, "LOGIN", "New account registered and logged in");
 
@@ -129,7 +135,7 @@ export const loginUser = async ({ email, password }) => {
 
   const user = await userModel
     .findOne({ email: normalizedEmail })
-    .select("+password");
+    .select("+password +sessionVersion");
 
   // 🔐 prevent enumeration
   if (!user) {
@@ -148,12 +154,17 @@ export const loginUser = async ({ email, password }) => {
   // 📦 Heal legacy profiles on the fly (Non-blocking background execution!)
   migrateLegacyAvatar(user).catch(err => console.error("Background migration failed:", err));
 
-  const accessToken = generateAccessToken(user._id);
-  const refreshToken = generateRefreshToken(user._id);
-  const newRefreshToken = generateRefreshToken(user._id);
+  user.sessionVersion = (user.sessionVersion || 0) + 1;
+
+  const accessToken = generateAccessToken(user._id, user.sessionVersion);
+  const newRefreshToken = generateRefreshToken(user._id, user.sessionVersion);
 
   user.refreshToken = newRefreshToken;
   await user.save();
+
+  if (redis && redis.status === "ready") {
+    await redis.set(`session_version:${user._id}`, user.sessionVersion, "EX", 86400); // 24h cache
+  }
 
   logActivity(user._id, "LOGIN", "User logged in successfully");
 
@@ -181,18 +192,22 @@ export const refreshAccessTokenService = async (refreshToken) => {
 
 const user = await userModel
   .findById(decoded.id)
-  .select("+refreshToken");
+  .select("+refreshToken +sessionVersion");
 
   if (!user || user.refreshToken !== refreshToken) {
     throw createError("Invalid refresh token", 401);
   }
 
-  const newAccessToken = generateAccessToken(user._id);
-  const newRefreshToken = generateRefreshToken(user._id);
+  const newAccessToken = generateAccessToken(user._id, user.sessionVersion);
+  const newRefreshToken = generateRefreshToken(user._id, user.sessionVersion);
 
   // 🔄 ROTATE REFRESH TOKEN (Security + Longevity)
   user.refreshToken = newRefreshToken;
   await user.save();
+
+  if (redis && redis.status === "ready") {
+    await redis.set(`session_version:${user._id}`, user.sessionVersion, "EX", 86400); // 24h cache
+  }
 
   return { 
     accessToken: newAccessToken,
