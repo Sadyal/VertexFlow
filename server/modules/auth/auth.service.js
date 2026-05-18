@@ -12,6 +12,7 @@ import {
   generateVerifyEmailTemplate,
 } from "../../utils/email.js";
 import { logActivity } from "../../utils/activityLogger.js";
+import { processAvatarImage } from "../../utils/imageProcessor.js";
 
 /**
  * Utility: normalize email
@@ -30,6 +31,25 @@ const sanitizeUser = (user) => ({
   location: user.location,
   role: user.role,
 });
+
+/**
+ * 📦 DYNAMIC LEGACY MIGRATOR (Self-Healing DB)
+ * Detects legacy Base64 profiles in MongoDB, uploads to Cloudinary on-the-fly,
+ * and saves the optimized Cloudinary CDN URL to the database.
+ */
+const migrateLegacyAvatar = async (user) => {
+  if (user && user.avatar && user.avatar.startsWith("data:image/")) {
+    try {
+      console.log(`📦 Legacy Migration: Migrating Base64 avatar for user ${user._id} to Cloudinary...`);
+      const cloudinaryUrl = await processAvatarImage(user.avatar);
+      user.avatar = cloudinaryUrl;
+      await userModel.findByIdAndUpdate(user._id, { $set: { avatar: cloudinaryUrl } });
+      console.log(`📦 Legacy Migration: Success! Saved to Cloudinary.`);
+    } catch (err) {
+      console.error("📦 Legacy Migration Error:", err.message);
+    }
+  }
+};
 
 /**
  * Utility: structured error
@@ -125,10 +145,14 @@ export const loginUser = async ({ email, password }) => {
     throw createError("Please verify your account first", 403);
   }
 
+  // 📦 Heal legacy profiles on the fly (Non-blocking background execution!)
+  migrateLegacyAvatar(user).catch(err => console.error("Background migration failed:", err));
+
   const accessToken = generateAccessToken(user._id);
   const refreshToken = generateRefreshToken(user._id);
+  const newRefreshToken = generateRefreshToken(user._id);
 
-  user.refreshToken = refreshToken;
+  user.refreshToken = newRefreshToken;
   await user.save();
 
   logActivity(user._id, "LOGIN", "User logged in successfully");
@@ -136,7 +160,7 @@ export const loginUser = async ({ email, password }) => {
   return {
     user: sanitizeUser(user),
     accessToken,
-    refreshToken,
+    refreshToken: newRefreshToken,
   };
 };
 
@@ -189,6 +213,9 @@ export const getCurrentUser = async (userId) => {
   if (!user) {
     throw createError("User not found", 404);
   }
+
+  // 📦 Heal legacy profiles on the fly
+  await migrateLegacyAvatar(user);
 
   return sanitizeUser(user);
 };
@@ -370,7 +397,16 @@ export const resetPasswordService = async ({
 export const updateProfileService = async (userId, { name, avatar, bio, location }) => {
   const updateData = {};
   if (name) updateData.name = name.trim();
-  if (avatar !== undefined) updateData.avatar = avatar;
+  
+  if (avatar !== undefined) {
+    if (avatar && avatar.startsWith("data:image/")) {
+      // ☁️ Process base64 avatar and upload to Cloudinary
+      updateData.avatar = await processAvatarImage(avatar);
+    } else {
+      updateData.avatar = avatar;
+    }
+  }
+
   if (bio !== undefined) updateData.bio = bio.trim();
   if (location !== undefined) updateData.location = location.trim();
 
@@ -386,4 +422,4 @@ export const updateProfileService = async (userId, { name, avatar, bio, location
   logActivity(userId, avatar ? "AVATAR_UPDATED" : "PROFILE_UPDATED", detail);
 
   return sanitizeUser(user);
-};
+};

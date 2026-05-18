@@ -36,6 +36,7 @@ import { ImageNode } from './ImageNode.jsx';
 import LexicalTheme from './LexicalTheme';
 import LexicalToolbar from './LexicalToolbar';
 import SocketSyncPlugin from './SocketSyncPlugin';
+import { useAuth } from '../../../context/AuthContext';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { $generateHtmlFromNodes } from '@lexical/html';
 import { INSERT_IMAGE_COMMAND, $createImageNode } from './ImageNode.jsx';
@@ -109,6 +110,7 @@ const Editor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isOnline } = useNetworkStatus();
+  const { user } = useAuth();
   
   const [doc, setDoc] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -123,6 +125,10 @@ const Editor = () => {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [documentContent, setDocumentContent] = useState(null); 
   const [editorInstance, setEditorInstance] = useState(null); 
+  
+  // 🛡️ SECURITY DEBOUNCE REFS
+  const lastPasteTimeRef = useRef(0);
+  const activeUploadsCountRef = useRef(0); 
 
   // 1. Lexical Configuration
   const initialConfig = useMemo(() => ({
@@ -155,12 +161,21 @@ const Editor = () => {
     );
   }, []);
 
-  // 2. Socket Connection
+  // 2. Socket Connection & Cache Fast-Load
   useEffect(() => {
+    if (!user) return; // 🛡️ Wait until user session is loaded to prevent token-missing errors and isolate cache
+    
+    const currentUserId = user?._id || user?.id;
+
     const s = io(SOCKET_URL, {
       withCredentials: true
     });
     setSocket(s);
+
+    // 🕒 Socket Heartbeat: sliding expire refresh every 20s
+    const heartbeatInterval = setInterval(() => {
+      s.emit("heartbeat");
+    }, 20000);
 
     s.on('connect', () => {
       if (id) s.emit('get-document', id);
@@ -169,16 +184,20 @@ const Editor = () => {
     s.on('load-document', (content) => {
       setDocumentContent(content);
       setIsLoading(false);
-      // 🚀 Cache to IndexedDB for next refresh
-      db.saveDocument(id, content);
+      // 🚀 Cache to IndexedDB isolated securely by current user's ID
+      if (currentUserId) {
+        db.saveDocument(id, content, currentUserId);
+      }
     });
 
-    // 🚀 INDEXEDDB FAST-LOAD: Try to load from cache immediately
+    // 🚀 INDEXEDDB FAST-LOAD: Try to load from cache immediately (Tenant-Isolated)
     const loadFromCache = async () => {
-      const cachedContent = await db.getDocument(id);
-      if (cachedContent) {
-        setDocumentContent(cachedContent);
-        setIsLoading(false); // Render immediately if cache exists
+      if (currentUserId) {
+        const cachedContent = await db.getDocument(id, currentUserId);
+        if (cachedContent) {
+          setDocumentContent(cachedContent);
+          setIsLoading(false); // Render immediately if cache exists
+        }
       }
     };
     loadFromCache();
@@ -204,10 +223,11 @@ const Editor = () => {
     }, 8000); // Increased for slower networks
 
     return () => {
+      clearInterval(heartbeatInterval);
       s.disconnect();
       clearTimeout(safetyTimeout);
     };
-  }, [id, navigate]); // Removed isLoading from deps to avoid re-triggering
+  }, [id, navigate, user]); // Added user to dependencies to re-trigger when loaded
 
   const fetchDoc = useCallback(async () => {
     try {
@@ -335,31 +355,68 @@ const Editor = () => {
     const handlePaste = async (e) => {
       if (!editorInstance) return;
       
-      const items = e.clipboardData?.items;
-      if (items) {
-        let hasImage = false;
-        for (let i = 0; i < items.length; i++) {
-          if (items[i].type.indexOf('image') !== -1) {
-            hasImage = true;
-            const file = items[i].getAsFile();
-            
-            try {
-              // 🚀 Switch from base64 encoding to CDN uploading to prevent DB bloat
-              const response = await documentApi.uploadImage(file);
-              if (response.success && response.data?.url) {
-                editorInstance.dispatchCommand(INSERT_IMAGE_COMMAND, {
-                  src: response.data.url,
-                  altText: 'Pasted Image'
-                });
-              }
-            } catch (err) {
-              console.error('Failed to upload pasted image:', err);
-            }
+      const clipboardData = e.clipboardData;
+      if (!clipboardData) return;
+
+      // 1. Gather all files (handles both items.getAsFile() and File Explorer copies)
+      const filesToUpload = [];
+      
+      // Try items first (screenshots / web snippets)
+      if (clipboardData.items) {
+        for (let i = 0; i < clipboardData.items.length; i++) {
+          if (clipboardData.items[i].type.indexOf('image') !== -1) {
+            const file = clipboardData.items[i].getAsFile();
+            if (file) filesToUpload.push(file);
           }
         }
+      }
+      
+      // Fallback/Supplement with files (handles copy-paste of files directly from folders)
+      if (filesToUpload.length === 0 && clipboardData.files && clipboardData.files.length > 0) {
+        for (let i = 0; i < clipboardData.files.length; i++) {
+          if (clipboardData.files[i].type.startsWith('image/')) {
+            filesToUpload.push(clipboardData.files[i]);
+          }
+        }
+      }
+
+      if (filesToUpload.length > 0) {
+        e.preventDefault(); // Block default HTML/base64 pasting
         
-        if (hasImage) {
-          e.preventDefault(); // Prevent default base64 paste behavior
+        for (const file of filesToUpload) {
+          // 🛡️ SECURITY DEBOUNCE: Enforce strict rate-limiting to prevent memory exhaustion
+          const now = Date.now();
+          if (now - lastPasteTimeRef.current < 1500) {
+            console.warn('⚠️ Image paste rate-limited. Please wait 1.5 seconds between pastes.');
+            continue;
+          }
+          if (activeUploadsCountRef.current >= 3) {
+            console.warn('⚠️ Too many concurrent uploads. Please wait.');
+            continue;
+          }
+
+          // 🛡️ SIZE LIMIT VALIDATION (Multer 5MB maximum limit)
+          if (file.size > 5 * 1024 * 1024) {
+            alert('⚠️ Pasted image is too large! Maximum allowed size is 5MB.');
+            continue;
+          }
+
+          lastPasteTimeRef.current = now;
+          activeUploadsCountRef.current += 1;
+
+          try {
+            const response = await documentApi.uploadImage(file);
+            if (response.success && response.data?.url) {
+              editorInstance.dispatchCommand(INSERT_IMAGE_COMMAND, {
+                src: response.data.url,
+                altText: 'Pasted Image'
+              });
+            }
+          } catch (err) {
+            console.error('Failed to upload pasted image:', err);
+          } finally {
+            activeUploadsCountRef.current = Math.max(0, activeUploadsCountRef.current - 1);
+          }
         }
       }
     };
@@ -522,6 +579,7 @@ const Editor = () => {
             docId={id} 
             initialContent={documentContent} 
             isOnline={isOnline}
+            userId={user?._id || user?.id}
             onSyncStatusChange={setIsSyncing}
           />
         </div>

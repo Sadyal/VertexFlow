@@ -32,6 +32,9 @@ const Profile = () => {
   const [heatmapStats, setHeatmapStats] = useState([]);
   const [isStatsLoading, setIsStatsLoading] = useState(true);
   const [isActivityLoading, setIsActivityLoading] = useState(true);
+  
+  // 📸 Lightweight browser Blob URL for instant memory-efficient previews
+  const [localPreview, setLocalPreview] = useState(null);
 
   // ⚡ PERFORMANCE FIX: Map raw heatmap stats to the grid
   const heatmapData = useMemo(() => {
@@ -125,18 +128,27 @@ const Profile = () => {
   const handleAvatarUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
+      // 🚀 Use an instant lightweight Object URL for local browser preview.
+      // Takes 0 bytes of memory or network overhead, avoiding loading heavy Base64 strings.
+      const objectUrl = URL.createObjectURL(file);
+      setLocalPreview(objectUrl);
+
       const reader = new FileReader();
       reader.onload = async (readerEvent) => {
         const base64 = readerEvent.target.result;
         try {
-          // 🚀 Update Global State (Context + LocalStorage)
-          updateGlobalAvatar(base64);
-          
-          // 🚀 Update Backend
-          await authApi.updateProfile({ avatar: base64 });
+          // 🚀 Update Backend with the Base64 image
+          const response = await authApi.updateProfile({ avatar: base64 });
+          if (response.success && response.data?.user?.avatar) {
+            // Overwrite and save the clean optimized Cloudinary URL in global state & IndexedDB
+            updateGlobalAvatar(response.data.user.avatar);
+          }
         } catch (err) { 
           console.error("Avatar update failed:", err); 
-          // Optional: revert local state if backend fails
+        } finally {
+          // Clean up the object URL after the operation completes to free browser memory
+          URL.revokeObjectURL(objectUrl);
+          setLocalPreview(null);
         }
       };
       reader.readAsDataURL(file);
@@ -362,8 +374,8 @@ const Profile = () => {
             <div className="profile-hero-header"></div>
             <div className="profile-hero-content">
               <div className="profile-avatar-giant-wrapper">
-                {userAvatar ? (
-                  <img src={userAvatar} alt="Profile" className="profile-avatar-giant" />
+                {localPreview || userAvatar ? (
+                  <img src={localPreview || userAvatar} alt="Profile" className="profile-avatar-giant" />
                 ) : (
                   <div className="profile-initials-giant">{getInitials(name)}</div>
                 )}

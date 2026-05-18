@@ -14,12 +14,12 @@ import {
 } from "./auth.controller.js";
 
 import authMiddleware from "../../middleware/auth.middleware.js";
-import { authLimiter, otpLimiter } from "../../middleware/rateLimiter.js";
+import { authLimiter, otpLimiter, resetPasswordLimiter } from "../../middleware/rateLimiter.js";
 
 const router = express.Router();
 
 // 📦 Standard limit for most auth operations
-const standardParser = express.json({ limit: "10kb" });
+const standardParser = express.json({ limit: "16kb" });
 const largeParser = express.json({ limit: "2mb" });
 
 /**
@@ -50,7 +50,7 @@ router.post("/verify-email", standardParser, verifyEmail);
  * 🔐 PASSWORD RESET
  */
 router.post("/send-reset-otp", standardParser, otpLimiter, sendResetOtp);
-router.post("/reset-password", standardParser, authLimiter, resetPassword);
+router.post("/reset-password", standardParser, resetPasswordLimiter, resetPassword);
 
 /**
  * 🔄 TOKEN MANAGEMENT

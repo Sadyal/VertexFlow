@@ -86,18 +86,28 @@ const SocialHub = () => {
 
       const cached = await db.getUserAsset(`social_feed_${userId}`);
       if (cached && cached.length > 0) {
-        // Only render first 5 initially to prevent main-thread bottleneck
-        setPosts(cached.slice(0, 5));
-        
-        // Defer loading the rest to keep main thread free for LCP
-        setTimeout(() => {
-          setPosts(cached);
-        }, 300);
+        // 🚀 SANITIZE CACHE: Strip any legacy Base64 data blocks from cache rendering
+        // This stops the browser from ever loading/decoding the heavy 1.9MB/3MB strings in RAM.
+        const cleanCached = cached.slice(0, 5).map(post => {
+          const isBase64Image = post.image && post.image.startsWith('data:image/');
+          const isBase64Avatar = post.author?.avatar && post.author.avatar.startsWith('data:image/');
+          
+          return {
+            ...post,
+            image: isBase64Image ? '' : post.image,
+            author: post.author ? {
+              ...post.author,
+              avatar: isBase64Avatar ? '' : post.author.avatar
+            } : post.author
+          };
+        });
+        setPosts(cleanCached);
       }
       
-      const freshData = await fetchPosts(1);
+      const freshData = await fetchPosts(null, true);
       if (freshData?.posts) {
-        db.saveUserAsset(`social_feed_${userId}`, freshData.posts);
+        // Cache only the latest 5 posts to keep startup load lightning fast
+        db.saveUserAsset(`social_feed_${userId}`, freshData.posts.slice(0, 5));
       }
     };
     loadCache();
@@ -105,12 +115,12 @@ const SocialHub = () => {
 
   // 🖱️ PERFORMANT INFINITE SCROLL (IntersectionObserver)
   useEffect(() => {
-    if (!pagination.hasMore) return;
+    if (!pagination || !pagination.hasMore) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && !isLoading) {
-          fetchPosts(pagination.currentPage + 1);
+        if (entries[0].isIntersecting && !isLoading && pagination.nextCursor) {
+          fetchPosts(pagination.nextCursor, false);
         }
       },
       { threshold: 0.1, rootMargin: '200px' }

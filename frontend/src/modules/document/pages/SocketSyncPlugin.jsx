@@ -9,7 +9,7 @@ import { db } from '../../../utils/db';
  * @description Bridges Lexical editor state with the existing Socket.io logic.
  * Handles 'send-changes', 'receive-changes', and 'save-document' without backend changes.
  */
-export default function SocketSyncPlugin({ socket, docId, initialContent, isOnline, onSyncStatusChange }) {
+export default function SocketSyncPlugin({ socket, docId, initialContent, isOnline, userId, onSyncStatusChange }) {
   const [editor] = useLexicalComposerContext();
   const isUpdatingRef = useRef(false);
   const hasInitializedRef = useRef(false);
@@ -25,7 +25,7 @@ export default function SocketSyncPlugin({ socket, docId, initialContent, isOnli
         : JSON.stringify(pendingStateRef.current);
         
       socket.emit('save-document', stateString);
-      db.saveDocument(docId, stateString); // 🚀 Local persist
+      db.saveDocument(docId, stateString, userId); // 🚀 Local persist
       pendingStateRef.current = null;
       onSyncStatusChange(false);
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
@@ -92,7 +92,7 @@ export default function SocketSyncPlugin({ socket, docId, initialContent, isOnli
       try {
         const parsedState = editor.parseEditorState(stateJSON);
         editor.setEditorState(parsedState, { tag: 'remote' });
-        db.saveDocument(docId, stateString); // 🚀 Update cache on remote change
+        db.saveDocument(docId, stateString, userId); // 🚀 Update cache on remote change
       } catch (err) {
         console.error('Remote sync error:', err);
       } finally {
@@ -119,7 +119,7 @@ export default function SocketSyncPlugin({ socket, docId, initialContent, isOnli
       
       // 🚀 Broadcast to others immediately
       socket.emit('send-changes', stateJSON);
-      db.saveDocument(docId, stateString); // 🚀 Cache local edits instantly
+      db.saveDocument(docId, stateString, userId); // 🚀 Cache local edits instantly
 
       onSyncStatusChange(true);
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);

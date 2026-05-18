@@ -27,6 +27,8 @@ import { $getSelection, $isRangeSelection, $getNearestNodeFromDOMNode, $createPa
 import { $patchStyleText } from '@lexical/selection';
 import { CheckSquare, Palette, Highlighter, Image as ImageIcon, ChevronDown } from 'lucide-react';
 
+import { documentApi } from '../doc.api';
+
 const ToolbarButton = ({ onClick, icon: Icon, active, title }) => (
   <button
     className={`toolbar-item ${active ? 'is-active' : ''}`}
@@ -49,6 +51,9 @@ export default function LexicalToolbar() {
   const [currentColor, setCurrentColor] = React.useState('#ffffff');
   const [currentBgColor, setCurrentBgColor] = React.useState('transparent');
   const fileInputRef = React.useRef(null);
+  
+  // 🚀 Track active uploading state
+  const [isUploading, setIsUploading] = React.useState(false);
 
   // 🚀 MONITOR SELECTION STATE
   React.useEffect(() => {
@@ -94,54 +99,35 @@ export default function LexicalToolbar() {
     });
   };
 
-  const insertImage = (base64) => {
-    editor.update(() => {
-      const selection = $getSelection();
-      if ($isRangeSelection(selection)) {
-        // We insert an image node if registered, otherwise we use HTML injection
-        // Since we are adding ImageNode next, we'll use a placeholder logic here
-        const imgNode = $createImageNode({ src: base64, altText: 'Uploaded Image' });
-        selection.insertNodes([imgNode]);
-      }
-    });
-  };
-
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          // 🚀 PERFORMANCE OPTIMIZATION: Resize & Compress
-          // This prevents large Base64 strings from slowing down real-time sync
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 1000; // Cap width at 1000px
-          let width = img.width;
-          let height = img.height;
+      // 🛡️ Client-side size limit validation (5MB Multer Limit)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('⚠️ Selected image is too large! Maximum allowed size is 5MB.');
+        return;
+      }
 
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          
-          // Use high-quality interpolation
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          
-          ctx.drawImage(img, 0, 0, width, height);
-
-          // 📦 Compress to 60% quality JPEG (Great balance of size and clarity)
-          const optimizedBase64 = canvas.toDataURL('image/jpeg', 0.6);
-          insertImage(optimizedBase64);
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
+      setIsUploading(true);
+      try {
+        // 🚀 Switch from heavy local Base64 rendering to secure Cloudinary CDN uploading.
+        // This keeps the document content tiny, preventing database bloat and WebSocket crashes!
+        const response = await documentApi.uploadImage(file);
+        if (response.success && response.data?.url) {
+          editor.update(() => {
+            const selection = $getSelection();
+            if ($isRangeSelection(selection)) {
+              const imgNode = $createImageNode({ src: response.data.url, altText: 'Uploaded Image' });
+              selection.insertNodes([imgNode]);
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Failed to upload selected image:', err);
+        alert('⚠️ Image upload failed. Please try again.');
+      } finally {
+        setIsUploading(false);
+      }
     }
   };
 

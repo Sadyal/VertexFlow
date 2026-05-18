@@ -97,8 +97,8 @@ export const useDocuments = () => {
           storage.set(CACHE_KEY, updated);
           return updated;
         });
-        // 🚀 PURGE CACHE: Remove content from IndexedDB too
-        db.deleteDocument(id);
+        // 🚀 PURGE CACHE: Remove content from IndexedDB too (Tenant-Isolated)
+        db.deleteDocument(id, userId);
         return true;
       }
     } catch (err) {

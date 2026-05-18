@@ -1,26 +1,40 @@
 import { useState, useCallback } from 'react';
 import axios from '../../utils/axios';
 
+// ⏳ In-memory debouncer map to buffer rapid consecutive likes per post
+const likeTimeouts = {};
+
 export const useSocial = () => {
   const [posts, setPosts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
-  const [pagination, setPagination] = useState({ hasMore: true, currentPage: 1 });
+  const [pagination, setPagination] = useState({ hasMore: true, nextCursor: null });
 
   /**
-   * 📡 FETCH POSTS
+   * 📡 FETCH POSTS (Cursor-based)
    */
-  const fetchPosts = useCallback(async (page = 1) => {
+  const fetchPosts = useCallback(async (cursor = null, isReset = false) => {
     setIsLoading(true);
     try {
-      const res = await axios.get(`/api/social/posts?page=${page}`);
-      if (page === 1) {
+      const query = cursor ? `?nextCursor=${cursor}` : '';
+      const res = await axios.get(`/api/social/posts${query}`);
+      
+      if (isReset || !cursor) {
         setPosts(res.data.posts);
       } else {
-        setPosts(prev => [...prev, ...res.data.posts]);
+        setPosts(prev => {
+          // 🛡️ Filter duplicates in case of race conditions during scroll
+          const newPosts = res.data.posts.filter(np => !prev.some(p => p._id === np._id));
+          return [...prev, ...newPosts];
+        });
       }
-      setPagination(res.data.pagination);
+      
+      setPagination({
+        hasMore: res.data.hasMore,
+        nextCursor: res.data.nextCursor
+      });
+      
       setError(null);
       return res.data;
     } catch (err) {
@@ -51,12 +65,8 @@ export const useSocial = () => {
    * ❤️ TOGGLE LIKE (Optimistic UI)
    */
   const toggleLike = useCallback(async (postId) => {
-    // 1. Snapshot previous state
-    let previousPosts;
-    
-    // 2. Perform Optimistic Update
+    // 1. Perform instant optimistic UI toggle (perfect responsive feedback)
     setPosts(prev => {
-      previousPosts = prev;
       return prev.map(post => {
         if (post._id === postId) {
           const isLiked = !post.isLiked;
@@ -67,28 +77,40 @@ export const useSocial = () => {
       });
     });
 
-    try {
-      const res = await axios.post(`/api/social/posts/${postId}/like`);
-      
-      // 3. Sync with server response
-      setPosts(prev => prev.map(post => {
-        if (post._id === postId) {
-          return { 
-            ...post, 
-            likesCount: res.data.likesCount, 
-            isLiked: res.data.isLiked 
-          };
-        }
-        return post;
-      }));
-
-      return res.data;
-    } catch (err) {
-      // 4. Rollback on failure
-      console.error('❤️ Social: Like failed, rolling back', err);
-      if (previousPosts) setPosts(previousPosts);
+    // 2. Cancel any pending HTTP request scheduled for this post
+    if (likeTimeouts[postId]) {
+      clearTimeout(likeTimeouts[postId]);
     }
-  }, []);
+
+    // 3. Debounce network sync by 500ms
+    return new Promise((resolve, reject) => {
+      likeTimeouts[postId] = setTimeout(async () => {
+        delete likeTimeouts[postId];
+        try {
+          const res = await axios.post(`/api/social/posts/${postId}/like`);
+          
+          // 4. Align UI with exact server results
+          setPosts(prev => prev.map(post => {
+            if (post._id === postId) {
+              return { 
+                ...post, 
+                likesCount: res.data.likesCount, 
+                isLiked: res.data.isLiked 
+              };
+            }
+            return post;
+          }));
+          
+          resolve(res.data);
+        } catch (err) {
+          console.error('❤️ Social: Like sync failed', err);
+          // Sync with fresh page data on error
+          fetchPosts(1);
+          reject(err);
+        }
+      }, 500);
+    });
+  }, [fetchPosts]);
 
   /**
    * 💬 ADD COMMENT

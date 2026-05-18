@@ -59,6 +59,8 @@ const postSchema = new mongoose.Schema(
 );
 
 // 🚀 Performance Indexing
+postSchema.index({ isDeleted: 1, _id: -1 }); // ⚡ Fix 4: Fast cursor feed pagination
+postSchema.index({ isDeleted: 1, createdAt: -1 });
 postSchema.index({ createdAt: -1 });
 
 const Post = mongoose.model("Post", postSchema);

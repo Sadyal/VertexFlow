@@ -21,6 +21,8 @@ const activitySchema = new mongoose.Schema(
         "DOC_SHARED",
         "DOC_VIEWED",
         "DOC_DOWNLOADED",
+        "PROFILE_UPDATED",
+        "AVATAR_UPDATED",
       ],
     },
     details: {

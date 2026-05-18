@@ -16,13 +16,25 @@ export const registerUserSocket = async (socket, userId) => {
 
     if (redis) {
       const userSocketsKey = `${REDIS_PREFIX_USER_SOCKETS}${uid}`;
-      // Add this specific socket ID to the user's set
-      await redis.sadd(userSocketsKey, sid);
-      // Ensure they are in the global online users set
-      await redis.sadd(REDIS_KEY_ONLINE_USERS, uid);
       
+      // 🛡️ Phase 5: Reject Tab Spam (Limit max 3 parallel tabs per user)
       const count = await redis.scard(userSocketsKey);
-      return count === 1;
+      if (count >= 3) {
+        console.warn(`⚠️ [SOCKET LIMIT] User ${uid} tab limit exceeded (3). Rejecting session ${sid}.`);
+        socket.emit("tab-limit-exceeded", { maxLimit: 3 });
+        socket.disconnect(true);
+        return false;
+      }
+
+      // Add socket ID
+      await redis.sadd(userSocketsKey, sid);
+      await redis.expire(userSocketsKey, 90); // 🛡️ sliding expiration TTL 90s
+
+      // Add to online users
+      await redis.sadd(REDIS_KEY_ONLINE_USERS, uid);
+      await redis.expire(REDIS_KEY_ONLINE_USERS, 90);
+      
+      return count === 0; // Returns true if this is their first connection
     }
     return true;
   } catch (error) {

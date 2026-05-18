@@ -16,6 +16,7 @@ import socialRoutes from "./modules/social/social.routes.js";
 import userRoutes from "./modules/user/user.routes.js";
 import User from "./models/user.model.js";
 import Activity from "./models/activity.model.js";
+import { requestTimeout, payloadSanitizer, malformedJsonHandler } from "./middleware/protection.middleware.js";
 
 const app = express();
 
@@ -75,6 +76,7 @@ app.use(
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }, // 🖼️ ALLOW IMAGES TO BE LOADED ACROSS PORTS
 }));
+app.use(requestTimeout); // 🕒 Strict 10-second production timeout guard
 app.use(globalLimiter); // 🚀 Apply to all routes
 
 
@@ -87,8 +89,10 @@ app.use(globalLimiter); // 🚀 Apply to all routes
  * 🍪 COOKIE PARSER & BODY LIMITS
  */
 app.use(cookieParser());
-app.use(express.json({ limit: "10mb" })); // 🛡️ Prevent "Big Payload" crashes
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json({ limit: "64kb" })); // 🛡️ Production-Grade: 64kb default limit
+app.use(express.urlencoded({ extended: true, limit: "64kb" }));
+app.use(malformedJsonHandler); // Gracefully handle malformed bodies
+app.use(payloadSanitizer);    // Block nesting and array bombs
 
 /**
  * 🧪 REQUEST LOGGER (DEV ONLY)

@@ -11,6 +11,7 @@ import {
 
 import authMiddleware from "../../middleware/auth.middleware.js";
 import verifyDocAccessMiddleware from "../../middleware/verifyDocAccess.middleware.js"; // ✅ FIXED
+import { uploadLimiter } from "../../middleware/rateLimiter.js";
 
 import multer from "multer";
 
@@ -21,7 +22,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 *
  * 🔐 Global auth (required)
  */
 router.use(authMiddleware);
-router.use(express.json({ limit: "10kb" }));
+router.use(express.json({ limit: "2mb" }));
 
 /**
  * 📄 DOCUMENT ROUTES
@@ -34,7 +35,7 @@ router.delete("/:id", deleteDoc);
 router.post("/:id/share", shareDoc);
 
 // 🖼️ Image Upload Endpoint
-router.post("/upload-image", upload.single("image"), uploadDocImage);
+router.post("/upload-image", uploadLimiter, upload.single("image"), uploadDocImage);
 
 /**
  * 🔐 Access-controlled route

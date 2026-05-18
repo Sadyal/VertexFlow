@@ -30,13 +30,14 @@ export const db = {
    * Stores or updates a document in the cache.
    * @param {string} id - Document ID
    * @param {string|object} content - Lexical state or HTML content
+   * @param {string} userId - ID of the currently logged-in user
    */
-  async saveDocument(id, content) {
-    if (!id) return;
+  async saveDocument(id, content, userId) {
+    if (!id || !userId) return;
     try {
       const instance = await this.init();
       const data = {
-        id,
+        id: `${userId}_${id}`, // Isolate cache record by user
         content,
         cachedAt: new Date().toISOString()
       };
@@ -51,12 +52,13 @@ export const db = {
   /**
    * Retrieves a document from the cache.
    * @param {string} id - Document ID
+   * @param {string} userId - ID of the currently logged-in user
    */
-  async getDocument(id) {
-    if (!id) return null;
+  async getDocument(id, userId) {
+    if (!id || !userId) return null;
     try {
       const instance = await this.init();
-      const doc = await instance.get(STORE_NAME, id);
+      const doc = await instance.get(STORE_NAME, `${userId}_${id}`);
       return doc ? doc.content : null;
     } catch (error) {
       console.error(`🚨 DB: Failed to fetch document ${id}`, error);
@@ -67,10 +69,11 @@ export const db = {
   /**
    * Clears a specific document from the cache.
    */
-  async deleteDocument(id) {
+  async deleteDocument(id, userId) {
+    if (!id || !userId) return;
     try {
       const instance = await this.init();
-      await instance.delete(STORE_NAME, id);
+      await instance.delete(STORE_NAME, `${userId}_${id}`);
     } catch (error) {
       console.error(`🚨 DB: Failed to delete document ${id}`, error);
     }

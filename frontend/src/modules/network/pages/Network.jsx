@@ -78,7 +78,16 @@ const Network = () => {
       withCredentials: true
     });
     setSocket(s);
-    return () => s.disconnect();
+
+    // 🕒 Socket Heartbeat: sliding expire refresh every 20s
+    const heartbeatInterval = setInterval(() => {
+      s.emit("heartbeat");
+    }, 20000);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      s.disconnect();
+    };
   }, []);
 
   useEffect(() => {
