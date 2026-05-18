@@ -1,3 +1,4 @@
+import './prism-init';
 import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
@@ -1113,37 +1114,7 @@ const EditorCapturePlugin = ({ onEditorReady }) => {
 const CodeHighlightPlugin = () => {
   const [editor] = useLexicalComposerContext();
   useEffect(() => {
-    let active = true;
-    let cleanup = null;
-
-    const loadPrism = async () => {
-      try {
-        const Prism = (await import('prismjs')).default;
-        await import('prismjs/components/prism-clike');
-        await import('prismjs/components/prism-javascript');
-        await import('prismjs/components/prism-css');
-        await import('prismjs/components/prism-markdown');
-        await import('prismjs/components/prism-python');
-        await import('prismjs/components/prism-json');
-
-        if (typeof window !== 'undefined') {
-          window.Prism = Prism;
-        }
-
-        if (active) {
-          cleanup = registerCodeHighlighting(editor);
-        }
-      } catch (err) {
-        console.error('Failed to load PrismJS highlight engine:', err);
-      }
-    };
-
-    loadPrism();
-
-    return () => {
-      active = false;
-      if (cleanup) cleanup();
-    };
+    return registerCodeHighlighting(editor);
   }, [editor]);
   return null;
 };
