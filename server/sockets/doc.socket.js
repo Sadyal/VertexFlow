@@ -123,29 +123,15 @@ export const registerDocHandlers = (io, socket) => {
   });
 
   // REAL-TIME CHANGES (NO DUPLICATE LISTENERS)
-  socket.on("send-changes", async (delta) => {
+  socket.on("send-changes", (delta) => {
     if (!socket.currentDoc) return;
-    
-    // Add SERVER RECEIVE log
-    console.log(`[SERVER RECEIVE] Socket: ${socket.id} | Doc: ${socket.currentDoc} | Received changes.`);
 
-    if (isRateLimited("send-changes")) {
-      console.log(`[SERVER RATE LIMIT] Socket: ${socket.id} | Doc: ${socket.currentDoc} | send-changes rate limited.`);
-      return; // 🛡️ Rate limit protect
-    }
+    if (isRateLimited("send-changes")) return; // 🛡️ Rate limit protect
 
     // 🛡️ SRE CHECK: Protect against malicious Memory Bomb broadcasts (<1ms)
     if (delta == null) return;
     if (typeof delta === "string" && delta.length > 2000000) return; // Cap string broadcasts to 2MB
     if (typeof delta === "object" && Object.keys(delta).length > 100) return; // Block massive object structures
-
-    // Add ROOM USERS log
-    const roomSockets = await io.in(socket.currentDoc).fetchSockets();
-    const userIds = roomSockets.map(s => s.userId);
-    console.log(`[ROOM USERS] Doc: ${socket.currentDoc} | Active users: ${JSON.stringify(userIds)}`);
-
-    // Add SERVER BROADCAST log
-    console.log(`[SERVER BROADCAST] Socket: ${socket.id} | Doc: ${socket.currentDoc} | Broadcasting to room.`);
 
     socket.broadcast
       .to(socket.currentDoc)

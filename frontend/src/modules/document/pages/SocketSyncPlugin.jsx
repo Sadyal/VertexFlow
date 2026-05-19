@@ -360,6 +360,12 @@ export default function SocketSyncPlugin({
       removeSelectionListener();
       if (broadcastTimeoutRef.current) clearTimeout(broadcastTimeoutRef.current);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      
+      // 🚀 Explicitly notify collaborators that typing has stopped and presence is disconnected
+      if (socket && socket.connected) {
+        socket.emit('presence-update', { status: 'offline', isTyping: false });
+      }
+      
       flushSave(); // 🚀 Force save on unmount
     };
   }, [socket, editor, docId, onSyncStatusChange, flushSave, userId, onCollaboratorsChange, updateLocalTyping]);

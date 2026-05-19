@@ -14,15 +14,13 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { ListPlugin } from '@lexical/react/LexicalListPlugin';
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
-import { CheckListPlugin } from '@lexical/react/LexicalCheckListPlugin';
 import { HorizontalRulePlugin } from '@lexical/react/LexicalHorizontalRulePlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { 
   $getSelection, 
   $isRangeSelection, 
-  COMMAND_PRIORITY_EDITOR,
-  $getRoot
+  COMMAND_PRIORITY_EDITOR
 } from 'lexical';
 
 // Lexical Nodes
@@ -32,15 +30,13 @@ import { ListItemNode, ListNode } from '@lexical/list';
 import { CodeNode, CodeHighlightNode, registerCodeHighlighting } from '@lexical/code';
 import { AutoLinkNode, LinkNode } from '@lexical/link';
 import { HorizontalRuleNode } from '@lexical/react/LexicalHorizontalRuleNode';
-import { ImageNode, $isImageNode } from './ImageNode.jsx';
+import { ImageNode } from './ImageNode.jsx';
 
 // Custom Lexical Components
 import LexicalTheme from './LexicalTheme';
 import LexicalToolbar from './LexicalToolbar';
 import SocketSyncPlugin from './SocketSyncPlugin';
 import { useAuth } from '../../../context/AuthContext';
-import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
-import { $generateHtmlFromNodes } from '@lexical/html';
 import { INSERT_IMAGE_COMMAND, $createImageNode } from './ImageNode.jsx';
 
 // VertexFlow Components & Utils
@@ -137,15 +133,14 @@ const Editor = () => {
   
   // 👥 SRE PRESENCE & IMAGE QUEUE STATES
   const [collaborators, setCollaborators] = useState([]);
-  const [typingUsers, setTypingUsers] = useState([]);
   const [queueState, setQueueState] = useState({ active: 0, waiting: 0 });
   const uploadQueueRef = useRef([]);
   const isUploadingRef = useRef(false);
 
   // 🛡️ SECURITY DEBOUNCE REFS
-  const lastPasteTimeRef = useRef(0);
-  const activeUploadsCountRef = useRef(0); 
   const lastImagePasteTimeRef = useRef(0);
+  const recentPastesRef = useRef([]); // track paste timestamps in last 2 seconds
+  const pasteLockedUntilRef = useRef(0); // timestamp for locking out pastes
 
   // 👥 COLLABORATION STATES
   const [syncState, setSyncState] = useState('synced');
@@ -182,6 +177,21 @@ const Editor = () => {
       COMMAND_PRIORITY_EDITOR
     );
   }, []);
+
+  // 🔄 REDIRECT ON REFRESH PROTECTION
+  useEffect(() => {
+    const navigationEntries = performance.getEntriesByType('navigation');
+    const isReload = (navigationEntries.length > 0 && navigationEntries[0].type === 'reload') ||
+                     (performance.navigation && performance.navigation.type === 1);
+    
+    if (isReload) {
+      if (globalSocket) {
+        globalSocket.disconnect();
+        globalSocket = null;
+      }
+      navigate('/dashboard', { state: { infoMessage: "Document closed due to page refresh." } });
+    }
+  }, [navigate]);
 
   // 2. Socket Connection & Cache Fast-Load (SRE Pooling Model)
   useEffect(() => {
@@ -581,11 +591,33 @@ const Editor = () => {
       const clipboardData = e.clipboardData;
       if (!clipboardData) return;
 
-      // 🛡️ FREE TIER SAFE PASTE ENGINE: Intercept huge copy-paste strings (>25,000 characters)
-      const text = clipboardData.getData('text');
-      if (text && text.length > 25000) {
+      const now = Date.now();
+
+      // 🛡️ GENERAL PASTE SPAM PROTECTION (Ctrl+V rate limit check)
+      if (now < pasteLockedUntilRef.current) {
         e.preventDefault();
-        alert('⚠️ Maximum paste limit: 25K characters.');
+        const secondsLeft = Math.ceil((pasteLockedUntilRef.current - now) / 1000);
+        alert(`⚠️ Paste disabled! You are pasting too fast. Please wait ${secondsLeft} seconds.`);
+        return;
+      }
+
+      // Filter out pastes older than 2 seconds (2000 ms)
+      recentPastesRef.current = recentPastesRef.current.filter(t => now - t < 2000);
+      recentPastesRef.current.push(now);
+
+      // If they pasted more than 3 times in 2 seconds, trigger a 5-second lockout
+      if (recentPastesRef.current.length > 3) {
+        pasteLockedUntilRef.current = now + 5000;
+        e.preventDefault();
+        alert('⚠️ Paste disabled! You are pasting too fast. Please wait 5 seconds.');
+        return;
+      }
+
+      // 🛡️ FREE TIER SAFE PASTE ENGINE: Intercept huge copy-paste strings (>15,000 characters)
+      const text = clipboardData.getData('text');
+      if (text && text.length > 15000) {
+        e.preventDefault();
+        alert('⚠️ Maximum paste limit: 15K characters.');
         return;
       }
 

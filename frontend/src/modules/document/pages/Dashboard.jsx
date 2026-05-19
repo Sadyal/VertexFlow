@@ -1,5 +1,5 @@
 import { useState, useEffect, memo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, FileText, Users, Sparkles } from 'lucide-react';
 import { useDocuments } from '../doc.hooks';
 import { useAuth } from '../../../context/AuthContext';
@@ -49,10 +49,27 @@ const Dashboard = () => {
   // STATE MANAGEMENT & HOOKS
   // ==========================================
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { docs, isLoading, createDoc, fetchDocs, removeDoc, renameDoc, error } = useDocuments();
   const { isOnline } = useNetworkStatus();
   const [isCreating, setIsCreating] = useState(false);
+  const [toastMessage, setToastMessage] = useState(null);
+
+  // 🛡️ SRE RELOAD-REDIRECT NOTIFIER: Capture navigation status and display toast
+  useEffect(() => {
+    if (location.state?.infoMessage) {
+      setToastMessage(location.state.infoMessage);
+      
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+        // Clear window history state so the toast doesn't reappear on dashboard reloads
+        window.history.replaceState({}, document.title);
+      }, 4000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [location.state]);
 
   // 🌍 SEO & Title
   useEffect(() => {
@@ -140,6 +157,26 @@ const Dashboard = () => {
           </Button>
         </div>
       </div>
+
+      {toastMessage && (
+        <div className="info-banner glass animate-fade-in" style={{
+          padding: '1rem',
+          margin: '0 0 1.5rem 0',
+          borderRadius: 'var(--radius-md)',
+          background: 'rgba(99, 102, 241, 0.12)',
+          border: '1px solid rgba(99, 102, 241, 0.25)',
+          color: 'var(--accent-color)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          fontSize: '0.95rem',
+          fontWeight: '500',
+          boxShadow: 'var(--shadow-sm)'
+        }}>
+          <Sparkles size={18} style={{ color: 'var(--accent-color)' }} />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
       {error && isOnline && (
         <div className="error-banner glass animate-fade-in">
