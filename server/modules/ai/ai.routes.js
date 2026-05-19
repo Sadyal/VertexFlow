@@ -10,10 +10,15 @@ import rateLimit from "express-rate-limit";
 
 const router = express.Router();
 
-// Specific rate limiting for AI to prevent abuse
+// Specific rate limiting for AI to prevent abuse (User-bound)
 const aiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // Limit each IP to 50 requests per window
+  max: 50, // Limit each user to 50 requests per window
+  keyGenerator: (req) => {
+    // Rate limit strictly by their authenticated database User ID!
+    // Fall back to IP address only if the user session is missing.
+    return req.user?.id || req.user?._id || req.ip;
+  },
   message: { success: false, message: "Too many AI requests, please try again later." },
   standardHeaders: true,
   legacyHeaders: false,

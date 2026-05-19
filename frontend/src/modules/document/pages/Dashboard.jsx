@@ -105,7 +105,7 @@ const Dashboard = () => {
         content: '{"root":{"children":[{"children":[],"direction":null,"format":"","indent":0,"type":"paragraph","version":1}],"direction":null,"format":"","indent":0,"type":"root","version":1}}' 
       });
       if (newDoc && (newDoc.id || newDoc._id)) {
-        navigate(`/docs/${newDoc.id || newDoc._id}`);
+        navigate(`/docs/${newDoc.id || newDoc._id}`, { viewTransition: true });
       }
     } catch (err) {
       console.error('Failed to create document:', err);

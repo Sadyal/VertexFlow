@@ -35,7 +35,7 @@ const Navbar = ({ onMenuClick }) => {
         </button>
         
         <div className="navbar-actions">
-          <Link to="/profile" className="user-profile-link" aria-label="View my profile">
+          <Link to="/profile" className="user-profile-link" aria-label="View my profile" viewTransition>
             <div className="user-profile">
               <div className="avatar" style={{ backgroundImage: userAvatar ? `url(${userAvatar})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' }}>
                 {!userAvatar && getInitials(user?.name)}

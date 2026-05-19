@@ -180,11 +180,9 @@ const Editor = () => {
 
   // 🔄 REDIRECT ON REFRESH PROTECTION
   useEffect(() => {
-    const navigationEntries = performance.getEntriesByType('navigation');
-    const isReload = (navigationEntries.length > 0 && navigationEntries[0].type === 'reload') ||
-                     (performance.navigation && performance.navigation.type === 1);
-    
-    if (isReload) {
+    const wasRefreshed = sessionStorage.getItem('vf_editor_refresh_redirect');
+    if (wasRefreshed === 'true') {
+      sessionStorage.removeItem('vf_editor_refresh_redirect');
       if (globalSocket) {
         globalSocket.disconnect();
         globalSocket = null;
@@ -708,7 +706,7 @@ const Editor = () => {
         {/* HEADER SECTION */}
         <div className="editor-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '50%' }}>
-            <button className="icon-btn" onClick={() => navigate('/dashboard')} aria-label="Go back to dashboard">
+            <button className="icon-btn" onClick={() => navigate('/dashboard', { viewTransition: true })} aria-label="Go back to dashboard">
               <ChevronLeft size={20} />
             </button>
             <input 

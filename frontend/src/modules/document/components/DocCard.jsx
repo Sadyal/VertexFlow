@@ -61,6 +61,9 @@ const DocCard = memo(({ doc, onDelete, onRename }) => {
     const currentUserId = user?._id || user?.id;
     if (!docId || !currentUserId) return;
 
+    // Warm-prefetch the Editor route javascript chunk in the background!
+    import('../pages/Editor').catch(() => {});
+
     try {
       // Avoid redundant API requests if local cache already exists
       const cached = await db.getDocument(docId, currentUserId);
@@ -84,7 +87,7 @@ const DocCard = memo(({ doc, onDelete, onRename }) => {
         className="doc-card glass-panel animate-fade-in"
         onMouseEnter={handleMouseEnter}
       >
-        <Link to={ROUTES.EDITOR(doc._id || doc.id)} className="doc-card-link">
+        <Link to={ROUTES.EDITOR(doc._id || doc.id)} className="doc-card-link" viewTransition>
           
           {/* Document Preview Area */}
           <div className="doc-card-preview">

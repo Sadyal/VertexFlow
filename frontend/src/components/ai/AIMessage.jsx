@@ -5,6 +5,15 @@ const AIMessage = memo(({ message, onInsert }) => {
   const isUser = message.role === 'user';
   const timeStr = message.timestamp ? new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
 
+  // Helper to escape raw HTML tags before custom markdown rendering to block XSS attacks
+  const escapeHtml = (text) => {
+    if (!text) return '';
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  };
+
   // Simple Markdown Formatter (Lightweight regex based)
   const formatContent = (text) => {
     if (!text) return null;
@@ -23,10 +32,11 @@ const AIMessage = memo(({ message, onInsert }) => {
         );
       }
       
-      // Handle Inline Code and Bold in regular text
+      // Handle Inline Code and Bold in regular text safely by escaping raw HTML tags first
+      const escapedPart = escapeHtml(part);
       return (
         <span key={i} dangerouslySetInnerHTML={{ 
-          __html: part
+          __html: escapedPart
             .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
             .replace(/`(.*?)`/g, '<code style="background: rgba(99, 102, 241, 0.1); color: var(--accent-primary); padding: 2px 4px; border-radius: 4px;">$1</code>')
             .replace(/\n/g, '<br/>')

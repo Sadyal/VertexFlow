@@ -127,7 +127,17 @@ app.get("/", (req, res) => {
  * Secured via query parameter: ?secret=YOUR_CRON_SECRET
  */
 app.get("/api/cron-cleanup", async (req, res) => {
-  const cronSecret = process.env.CRON_SECRET || "default_super_secret_token_123456";
+  const isProd = process.env.NODE_ENV === "production";
+  const cronSecret = process.env.CRON_SECRET || (!isProd ? "default_super_secret_token_123456" : null);
+  
+  if (isProd && !process.env.CRON_SECRET) {
+    console.error("🚨 [SECURITY ALERT] CRON_SECRET environment variable is missing in production! Cleanup endpoint is disabled.");
+    return res.status(500).json({
+      success: false,
+      message: "Configuration error: Database maintenance is not secure.",
+    });
+  }
+
   const incomingSecret = req.query.secret || req.headers["x-cron-secret"];
 
   if (!incomingSecret || incomingSecret !== cronSecret) {

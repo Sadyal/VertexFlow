@@ -347,7 +347,10 @@ export default function SocketSyncPlugin({
     socket.on('connect', handleConnect);
 
     // 🚀 Handle window close / tab switch
-    const handleBeforeUnload = () => flushSave();
+    const handleBeforeUnload = () => {
+      sessionStorage.setItem('vf_editor_refresh_redirect', 'true');
+      flushSave();
+    };
     window.addEventListener('beforeunload', handleBeforeUnload);
 
     return () => {
