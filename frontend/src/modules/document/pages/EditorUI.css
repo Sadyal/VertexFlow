@@ -132,7 +132,7 @@
   color: var(--text-primary);
   font-family: inherit;
   line-height: 1.6;
-  padding-bottom: 40vh;
+  padding-bottom: 80vh;
 }
 
 .lexical-editor-content .ProseMirror > * + * {
@@ -575,7 +575,7 @@ ul[data-type="taskList"] li > div {
   color: var(--text-primary);
   font-family: inherit;
   line-height: 1.6;
-  padding-bottom: 40vh;
+  padding-bottom: 80vh;
 }
 
 .lexical-placeholder {
@@ -611,14 +611,10 @@ ul[data-type="taskList"] li > div {
 /* Resizable Images */
 .editor-image {
   max-width: 100%;
-  height: auto;
-  cursor: nwse-resize; /* Resizing cursor */
   display: block;
   margin: 1rem 0;
   border-radius: var(--radius-md);
   transition: box-shadow 0.2s ease;
-  resize: both;
-  overflow: hidden;
 }
 
 .editor-image:hover {

@@ -35,16 +35,20 @@ export const db = {
    * @param {string} id - Document ID
    * @param {string|object} content - Lexical state or HTML content
    * @param {string} userId - ID of the currently logged-in user
+   * @param {boolean} pendingSave - Whether there are unsaved local edits
+   * @param {string} updatedAt - Server document last-updated timestamp
    */
-  async saveDocument(id, content, userId, pendingSave = false) {
+  async saveDocument(id, content, userId, pendingSave = false, updatedAt = null) {
     if (!id || !userId) return;
     try {
       const instance = await this.init();
+      const existing = await instance.get(STORE_NAME, `${userId}_${id}`);
       const data = {
         id: `${userId}_${id}`, // Isolate cache record by user
         content,
         pendingSave,
-        cachedAt: new Date().toISOString()
+        cachedAt: new Date().toISOString(),
+        updatedAt: updatedAt || existing?.updatedAt || null
       };
       await instance.put(STORE_NAME, data);
       return true;

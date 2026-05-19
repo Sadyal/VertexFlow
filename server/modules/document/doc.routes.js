@@ -3,7 +3,7 @@ import {
   getAllDocs,
   getDocById,
   createDoc,
-  renameDoc,
+  updateDoc,
   shareDoc,
   deleteDoc,
   uploadDocImage,
@@ -30,7 +30,7 @@ router.use(express.json({ limit: "2mb" }));
 router.get("/", getAllDocs);
 router.post("/", createDoc);
 
-router.patch("/:id", renameDoc);
+router.patch("/:id", updateDoc);
 router.delete("/:id", deleteDoc);
 router.post("/:id/share", shareDoc);
 

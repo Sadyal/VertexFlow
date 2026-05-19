@@ -96,9 +96,16 @@ const EditorSkeleton = memo(() => (
 let globalSocket = null;
 const getSharedSocket = () => {
   if (!globalSocket) {
+    let tabId = sessionStorage.getItem('vf_tab_id');
+    if (!tabId) {
+      tabId = Math.random().toString(36).substring(2, 15);
+      sessionStorage.setItem('vf_tab_id', tabId);
+    }
+    
     globalSocket = io(SOCKET_URL, {
       withCredentials: true,
-      autoConnect: false // Connect dynamically on mount
+      autoConnect: false, // Connect dynamically on mount
+      query: { tabId }
     });
   }
   return globalSocket;
@@ -209,12 +216,43 @@ const Editor = () => {
       }
     };
 
-    const handleLoadDoc = (content) => {
+    const handleLoadDoc = async (data) => {
+      // 🛡️ SRE CHECK: Support both traditional direct string/object payload and new {content, updatedAt} structure!
+      const content = data && typeof data === 'object' && 'content' in data ? data.content : data;
+      const updatedAt = data && typeof data === 'object' && 'updatedAt' in data ? data.updatedAt : null;
+
+      if (currentUserId) {
+        const cachedRecord = await db.getDocumentRecord(id, currentUserId);
+        if (cachedRecord) {
+          // 1. If local draft has unsaved edits, restore it and push it to the server!
+          if (cachedRecord.pendingSave) {
+            setDocumentContent(cachedRecord.content);
+            setIsLoading(false);
+            const contentStr = typeof cachedRecord.content === 'string' 
+              ? cachedRecord.content 
+              : JSON.stringify(cachedRecord.content);
+            s.emit('save-document', contentStr);
+            return;
+          }
+          
+          // 2. If the local cache is already up-to-date or newer (version comparison), do not overwrite local editor state!
+          if (updatedAt && cachedRecord.updatedAt) {
+            const serverTime = new Date(updatedAt).getTime();
+            const clientTime = new Date(cachedRecord.updatedAt).getTime();
+            if (serverTime <= clientTime) {
+              setDocumentContent(cachedRecord.content);
+              setIsLoading(false);
+              return;
+            }
+          }
+        }
+      }
+
+      // 3. Otherwise, accept server as the absolute ground truth!
       setDocumentContent(content);
       setIsLoading(false);
-      // 🚀 Cache to IndexedDB isolated securely by current user's ID
       if (currentUserId) {
-        db.saveDocument(id, content, currentUserId);
+        db.saveDocument(id, content, currentUserId, false, updatedAt);
       }
     };
 
@@ -556,11 +594,11 @@ const Editor = () => {
       if (clipboardData.items) {
         for (let i = 0; i < clipboardData.items.length; i++) {
           if (clipboardData.items[i].type.indexOf('image') !== -1) {
-            // 🛡️ SRE COOLDOWN REJECTION ENGINE: 2 seconds paste cooldown
+            // 🛡️ SRE COOLDOWN REJECTION ENGINE: 3 seconds paste cooldown
             const now = Date.now();
-            if (now - lastImagePasteTimeRef.current < 2000) {
+            if (now - lastImagePasteTimeRef.current < 3000) {
               e.preventDefault();
-              alert("Please wait before pasting another image");
+              alert("⚠️ Image paste restricted! Please wait 3 seconds before pasting another image.");
               return; // Reject completely: no upload, no queue, no request
             }
             lastImagePasteTimeRef.current = now;
@@ -574,11 +612,11 @@ const Editor = () => {
       if (filesToUpload.length === 0 && clipboardData.files && clipboardData.files.length > 0) {
         for (let i = 0; i < clipboardData.files.length; i++) {
           if (clipboardData.files[i].type.startsWith('image/')) {
-            // 🛡️ SRE COOLDOWN REJECTION ENGINE: 2 seconds paste cooldown
+            // 🛡️ SRE COOLDOWN REJECTION ENGINE: 3 seconds paste cooldown
             const now = Date.now();
-            if (now - lastImagePasteTimeRef.current < 2000) {
+            if (now - lastImagePasteTimeRef.current < 3000) {
               e.preventDefault();
-              alert("Please wait before pasting another image");
+              alert("⚠️ Image paste restricted! Please wait 3 seconds before pasting another image.");
               return;
             }
             lastImagePasteTimeRef.current = now;
@@ -943,7 +981,7 @@ const Editor = () => {
           </div>
         )}
 
-        <div style={{ display: 'flex', gap: '1rem', width: '100%', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: '1rem', width: '100%', flex: 1, minHeight: 0 }}>
           {/* LEXICAL EDITOR WRAPPER */}
           <div className="lexical-wrapper glass-panel" style={{ flex: 1 }}>
             <LexicalToolbar />

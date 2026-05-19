@@ -44,9 +44,9 @@ export const createDocService = async (userId, content) => {
 };
 
 /**
- * ✏️ Rename doc (validated)
+ * ✏️ Update doc (title and/or content)
  */
-export const renameDocService = async (docId, userId, title) => {
+export const updateDocService = async (docId, userId, { title, content }) => {
   const doc = await Document.findById(docId);
   if (!doc) throw createError("Document not found", 404);
 
@@ -56,16 +56,35 @@ export const renameDocService = async (docId, userId, title) => {
 
   if (!allowed) throw createError("Access denied", 403);
 
-  const trimmed = title?.trim();
+  let activityParts = [];
 
-  if (!trimmed) {
-    throw createError("Title cannot be empty", 400); // ✅ FIX
+  if (title !== undefined) {
+    const trimmed = title?.trim();
+    if (!trimmed) {
+      throw createError("Title cannot be empty", 400);
+    }
+    doc.title = trimmed;
+    activityParts.push(`renamed to "${trimmed}"`);
   }
 
-  doc.title = trimmed;
+  if (content !== undefined) {
+    let parsedContent = content;
+    if (typeof content === "string") {
+      try {
+        parsedContent = JSON.parse(content);
+      } catch (e) {
+        // Keep as string
+      }
+    }
+    doc.content = parsedContent;
+    activityParts.push("updated content");
+  }
+
   await doc.save();
 
-  logActivity(userId, "DOC_UPDATED", `Renamed document to: ${trimmed}`);
+  if (activityParts.length > 0) {
+    logActivity(userId, "DOC_UPDATED", `Updated document "${doc.title}": ${activityParts.join(" and ")}`);
+  }
 
   return doc;
 };

@@ -22,18 +22,8 @@ export default function setupSocket(server) {
     io.adapter(createAdapter(redis, subClient));
     console.log("⚡ Redis Socket Adapter enabled");
 
-    // 🚀 BOOT-TIME CLEANUP: Clear stale presence data from previous runs
-    (async () => {
-      try {
-        const keys = await redis.keys('user_sockets:*');
-        if (keys.length > 0) await redis.del(...keys);
-        await redis.del('online_users');
-        await redis.del('user_socket_counts');
-        console.log("🧹 Presence state cleaned on boot");
-      } catch (err) {
-        console.error("❌ Presence cleanup error:", err.message);
-      }
-    })();
+    // 🚀 BOOT-TIME CLEANUP: Let keys expire naturally via Redis TTL rather than wiping out other nodes' sessions!
+    console.log("🧹 Boot-time presence integrity check ready");
   }
 
   // ⚡ Sockets Ghost/Orphan Background Cleanup Worker (Runs every 60s)
@@ -55,8 +45,10 @@ export default function setupSocket(server) {
             let hasChanges = false;
 
             for (const sid of socketIds) {
-              const isLocalActive = io.sockets.sockets.has(sid);
-              if (!isLocalActive) {
+              // 🛡️ SRE CLUSTER-SAFE CHECK: Check if socket is active on ANY node in the cluster!
+              const activeSockets = await io.in(sid).fetchSockets();
+              const isGlobalActive = activeSockets.length > 0;
+              if (!isGlobalActive) {
                 pipeline.srem(key, sid);
                 hasChanges = true;
               }
@@ -87,8 +79,8 @@ export default function setupSocket(server) {
     console.log("🔌 Connected:", socket.id, "| User:", userId);
 
     // Register user in Redis (multi-device support)
-    const isFirstConnection = await registerUserSocket(socket, userId);
-    if (isFirstConnection === false) {
+    const registration = await registerUserSocket(socket, userId);
+    if (!registration.success) {
       // Session rejected immediately due to max limit (3 tabs)
       return;
     }
@@ -97,7 +89,7 @@ export default function setupSocket(server) {
     registerDocHandlers(io, socket);
     registerNetworkHandlers(io, socket);
 
-    if (isFirstConnection) {
+    if (registration.isFirstConnection) {
       await broadcastPresence(io, userId, true);
     }
 

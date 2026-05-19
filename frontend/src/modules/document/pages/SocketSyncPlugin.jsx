@@ -8,7 +8,7 @@ import { db } from '../../../utils/db';
  * 🚀 SRE Conflict-Free Block-Level Merging Engine
  * Prevents concurrent edit overwrites when multiple users modify different paragraphs.
  */
-function mergeLexicalStates(localJSON, remoteJSON, dirtyKeys) {
+function mergeLexicalStates(localJSON, remoteJSON, localActiveBlockKey, isLocalTyping) {
   if (!localJSON?.root?.children || !remoteJSON?.root?.children) {
     return remoteJSON; // Fallback to remote authoritative copy if malformed
   }
@@ -27,15 +27,15 @@ function mergeLexicalStates(localJSON, remoteJSON, dirtyKeys) {
       // Block added remotely, safe to append
       mergedChildren.push(remoteNode);
     } else if (!remoteNode) {
-      // Block deleted remotely. Protect if locally modified/dirty
-      const isDirty = localNode.key && dirtyKeys.has(localNode.key);
-      if (isDirty) {
+      // Block deleted remotely. Protect if local user is actively typing inside this block
+      const isLocked = isLocalTyping && localNode.key === localActiveBlockKey;
+      if (isLocked) {
         mergedChildren.push(localNode); // Keep local draft
       }
     } else {
       // Block exists in both. Protect if local user is actively typing inside this block
-      const isDirty = localNode.key && dirtyKeys.has(localNode.key);
-      if (isDirty) {
+      const isLocked = isLocalTyping && localNode.key === localActiveBlockKey;
+      if (isLocked) {
         mergedChildren.push(localNode); // Protect active local paragraph from override
       } else {
         mergedChildren.push(remoteNode); // Accept remote change safely
@@ -75,8 +75,8 @@ export default function SocketSyncPlugin({
   const lastContentRef = useRef(null);
   const pendingStateRef = useRef(null);
   
-  // Track keys of elements undergoing active local modifications
-  const dirtyElementsRef = useRef(new Set());
+  // Track currently selected local block node key
+  const localActiveBlockKeyRef = useRef(null);
 
   // 🚀 SRE CLIENT-SIDE BROADCAST THROTTLING (Bypasses server rate limit drops)
   const broadcastTimeoutRef = useRef(null);
@@ -108,13 +108,14 @@ export default function SocketSyncPlugin({
         : JSON.stringify(pendingStateRef.current);
         
       socket.emit('save-document', stateString);
-      db.saveDocument(docId, stateString, userId); // 🚀 Local persist
+      // 🛡️ SRE DB SAVE INTEGRITY: Keep pendingSave as true until server database save is fully confirmed!
+      db.saveDocument(docId, stateString, userId, true); 
+      
       pendingStateRef.current = null;
-      dirtyElementsRef.current.clear(); // Clear dirty elements once flushed
       onSyncStatusChange(false);
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     }
-  }, [socket, isOnline, onSyncStatusChange, docId, userId]);
+  }, [socket, onSyncStatusChange, docId, userId]);
 
   useEffect(() => {
     if (!editor || initialContent === null || initialContent === undefined) return;
@@ -190,9 +191,10 @@ export default function SocketSyncPlugin({
     if (!socket || !editor || !docId) return;
 
     // 🚀 Handle DB persist confirmation from the server
-    const handleSaveConfirmed = ({ docId: confirmedDocId }) => {
+    const handleSaveConfirmed = ({ docId: confirmedDocId, updatedAt }) => {
       if (confirmedDocId === docId && lastContentRef.current) {
-        db.saveDocument(docId, lastContentRef.current, userId, false); // Clear pendingSave flag!
+        // Clear pendingSave flag and save new server updatedAt timestamp!
+        db.saveDocument(docId, lastContentRef.current, userId, false, updatedAt); 
       }
     };
 
@@ -202,6 +204,8 @@ export default function SocketSyncPlugin({
     const handleRemoteUpdate = (stateJSON) => {
       if (isUpdatingRef.current) return;
       
+      console.log(`[CLIENT RECEIVE] Socket: ${socket.id} | Doc: ${docId} | Received remote changes.`);
+
       const stateString = JSON.stringify(stateJSON);
       if (stateString === lastContentRef.current) return;
 
@@ -210,12 +214,10 @@ export default function SocketSyncPlugin({
 
       try {
         const localJSON = editor.getEditorState().toJSON();
-        const mergedJSON = mergeLexicalStates(localJSON, stateJSON, dirtyElementsRef.current);
+        const mergedJSON = mergeLexicalStates(localJSON, stateJSON, localActiveBlockKeyRef.current, isLocalTypingRef.current);
         const parsedState = editor.parseEditorState(mergedJSON);
         
         editor.setEditorState(parsedState, { tag: 'remote' });
-        
-        // 🛡️ RACE CONDITION REMOVAL: Do not clear dirty elements here. They are only cleared when successfully flushed/saved to DB!
         db.saveDocument(docId, JSON.stringify(mergedJSON), userId); // 🚀 Update cache on remote change
       } catch (err) {
         console.error('Remote sync error:', err);
@@ -244,6 +246,8 @@ export default function SocketSyncPlugin({
               const blockKey = blockNode.getKey();
               const blockType = blockNode.getType();
               
+              localActiveBlockKeyRef.current = blockKey; // Keep track of current selected block node locally
+
               const now = Date.now();
               if (now - lastSelectionEmitTimeRef.current >= 100) {
                 lastSelectionEmitTimeRef.current = now;
@@ -267,11 +271,6 @@ export default function SocketSyncPlugin({
       if (isUpdatingRef.current || tags.has('remote')) return;
       if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return;
 
-      // Register elements marked dirty by active local editing
-      dirtyElements.forEach((_, key) => {
-        dirtyElementsRef.current.add(key);
-      });
-
       const stateJSON = editorState.toJSON();
       const stateString = JSON.stringify(stateJSON);
       
@@ -282,6 +281,7 @@ export default function SocketSyncPlugin({
 
       const performEmit = () => {
         if (socket && socket.connected) {
+          console.log(`[CLIENT SEND] Socket: ${socket.id} | Doc: ${docId} | Sending changes...`);
           socket.emit('send-changes', stateJSON);
         }
         lastEmitTimeRef.current = Date.now();
@@ -316,6 +316,36 @@ export default function SocketSyncPlugin({
       saveTimeoutRef.current = setTimeout(flushSave, 2000);
     });
 
+    // 🛡️ SRE PRESENCE SELF-HEALING: Automatically re-emit presence/selection details when socket reconnects!
+    const handleConnect = () => {
+      editor.getEditorState().read(() => {
+        const selection = $getSelection();
+        if ($isRangeSelection(selection)) {
+          const anchor = selection.anchor;
+          let blockNode = anchor.getNode();
+          while (blockNode && blockNode.getParent() && blockNode.getParent().getType() !== 'root') {
+            blockNode = blockNode.getParent();
+          }
+          if (blockNode) {
+            socket.emit('presence-update', {
+              status: localStatusRef.current,
+              isTyping: isLocalTypingRef.current,
+              cursor: lastCursorRef.current,
+              activeBlock: { key: blockNode.getKey(), type: blockNode.getType() }
+            });
+            return;
+          }
+        }
+        socket.emit('presence-update', {
+          status: localStatusRef.current,
+          isTyping: isLocalTypingRef.current,
+          cursor: lastCursorRef.current
+        });
+      });
+    };
+
+    socket.on('connect', handleConnect);
+
     // 🚀 Handle window close / tab switch
     const handleBeforeUnload = () => flushSave();
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -324,6 +354,7 @@ export default function SocketSyncPlugin({
       window.removeEventListener('beforeunload', handleBeforeUnload);
       socket.off('receive-changes', handleRemoteUpdate);
       socket.off('save-confirmed', handleSaveConfirmed);
+      socket.off('connect', handleConnect);
 
       removeUpdateListener();
       removeSelectionListener();
@@ -419,4 +450,3 @@ export default function SocketSyncPlugin({
 
   return null;
 }
-

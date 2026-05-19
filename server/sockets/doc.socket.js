@@ -4,8 +4,6 @@ import { logActivity } from "../utils/activityLogger.js";
 export const registerDocHandlers = (io, socket) => {
   // 🛡️ WEBSOCKET RATE LIMITING RULES
   const RATE_LIMITS = {
-    "send-changes": { limitMs: 50 },     // Max 20 changes broadcasted per second per user (50ms cooldown)
-    "save-document": { limitMs: 1500 },  // Max 1 DB update save request per 1.5 seconds per user
     "update-title": { limitMs: 1000 }    // Max 1 title update per second per user
   };
 
@@ -61,6 +59,8 @@ export const registerDocHandlers = (io, socket) => {
       socket.join(docId);
       socket.currentDoc = docId;
       
+      console.log(`👤 Socket: ${socket.id} | User: ${userId} | Joined room: ${docId}`);
+      
       // Store SRE User metadata directly on the socket object context
       socket.userMetadata = userMetadata || { name: "Collaborator", avatar: "", color: "#22c55e" };
       socket.presenceStatus = "online";
@@ -75,7 +75,8 @@ export const registerDocHandlers = (io, socket) => {
         ...s.userMetadata,
         status: s.presenceStatus || "online",
         isTyping: s.isTyping || false,
-        cursor: s.cursorPosition || null
+        cursor: s.cursorPosition || null,
+        activeBlock: s.activeBlockPosition || null
       }));
       socket.emit("presence-list", members);
 
@@ -88,7 +89,10 @@ export const registerDocHandlers = (io, socket) => {
         isTyping: false
       });
 
-      socket.emit("load-document", doc.content || "");
+      socket.emit("load-document", {
+        content: doc.content || "",
+        updatedAt: doc.updatedAt
+      });
       
       logActivity(userId, "DOC_VIEWED", `Opened document: ${doc.title || 'Untitled'}`);
 
@@ -105,6 +109,7 @@ export const registerDocHandlers = (io, socket) => {
     socket.presenceStatus = update.status || socket.presenceStatus;
     if (update.isTyping !== undefined) socket.isTyping = update.isTyping;
     if (update.cursor !== undefined) socket.cursorPosition = update.cursor;
+    if (update.activeBlock !== undefined) socket.activeBlockPosition = update.activeBlock;
     socket.lastSeen = Date.now();
 
     socket.broadcast.to(socket.currentDoc).emit("presence-updated", {
@@ -112,19 +117,35 @@ export const registerDocHandlers = (io, socket) => {
       userId: socket.userId,
       status: socket.presenceStatus,
       isTyping: socket.isTyping,
-      cursor: update.cursor || null
+      cursor: socket.cursorPosition || null,
+      activeBlock: socket.activeBlockPosition || null
     });
   });
 
   // REAL-TIME CHANGES (NO DUPLICATE LISTENERS)
-  socket.on("send-changes", (delta) => {
+  socket.on("send-changes", async (delta) => {
     if (!socket.currentDoc) return;
-    if (isRateLimited("send-changes")) return; // 🛡️ Rate limit protect
+    
+    // Add SERVER RECEIVE log
+    console.log(`[SERVER RECEIVE] Socket: ${socket.id} | Doc: ${socket.currentDoc} | Received changes.`);
+
+    if (isRateLimited("send-changes")) {
+      console.log(`[SERVER RATE LIMIT] Socket: ${socket.id} | Doc: ${socket.currentDoc} | send-changes rate limited.`);
+      return; // 🛡️ Rate limit protect
+    }
 
     // 🛡️ SRE CHECK: Protect against malicious Memory Bomb broadcasts (<1ms)
     if (delta == null) return;
     if (typeof delta === "string" && delta.length > 2000000) return; // Cap string broadcasts to 2MB
     if (typeof delta === "object" && Object.keys(delta).length > 100) return; // Block massive object structures
+
+    // Add ROOM USERS log
+    const roomSockets = await io.in(socket.currentDoc).fetchSockets();
+    const userIds = roomSockets.map(s => s.userId);
+    console.log(`[ROOM USERS] Doc: ${socket.currentDoc} | Active users: ${JSON.stringify(userIds)}`);
+
+    // Add SERVER BROADCAST log
+    console.log(`[SERVER BROADCAST] Socket: ${socket.id} | Doc: ${socket.currentDoc} | Broadcasting to room.`);
 
     socket.broadcast
       .to(socket.currentDoc)
@@ -162,13 +183,25 @@ export const registerDocHandlers = (io, socket) => {
         return socket.emit("access-denied");
       }
 
-      await Document.findByIdAndUpdate(
+      let parsedData = data;
+      if (typeof data === "string") {
+        try {
+          parsedData = JSON.parse(data);
+        } catch (e) {
+          // Keep as string if it's HTML or plain text
+        }
+      }
+
+      const updatedDoc = await Document.findByIdAndUpdate(
         socket.currentDoc,
-        { content: data },
-        { returnDocument: 'before' }
+        { content: parsedData },
+        { new: true } // Return updated doc with new updatedAt!
       );
 
-      socket.emit("save-confirmed", { docId: socket.currentDoc });
+      socket.emit("save-confirmed", { 
+        docId: socket.currentDoc,
+        updatedAt: updatedDoc.updatedAt
+      });
       logActivity(userId, "DOC_EDITED", `Edited document: ${doc.title || 'Untitled'}`);
     } catch (err) {
       console.error("❌ save-document error:", err.message);

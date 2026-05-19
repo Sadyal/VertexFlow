@@ -16,14 +16,50 @@ export const registerUserSocket = async (socket, userId) => {
 
     if (redis) {
       const userSocketsKey = `${REDIS_PREFIX_USER_SOCKETS}${uid}`;
+      const userTabsKey = `user_tabs:${uid}`;
+      const tabId = socket.handshake.query.tabId;
+
+      // 🔄 1. SRE Tab Replacement: If this is a page refresh, disconnect the old socket for the same tab immediately!
+      if (tabId) {
+        const oldSid = await redis.hget(userTabsKey, tabId);
+        if (oldSid && oldSid !== sid) {
+          const oldSocket = socket.server.sockets.sockets.get(oldSid);
+          if (oldSocket) {
+            console.log(`🔄 [TAB REPLACEMENT] Disconnecting old socket ${oldSid} for tab ${tabId} of user ${uid}`);
+            oldSocket.disconnect(true);
+          }
+          await redis.srem(userSocketsKey, oldSid);
+        }
+        // Save new socket ID for this tab
+        await redis.hset(userTabsKey, tabId, sid);
+        await redis.expire(userTabsKey, 90);
+      }
       
-      // 🛡️ Phase 5: Reject Tab Spam (Limit max 3 parallel tabs per user)
-      const count = await redis.scard(userSocketsKey);
-      if (count >= 3) {
-        console.warn(`⚠️ [SOCKET LIMIT] User ${uid} tab limit exceeded (3). Rejecting session ${sid}.`);
-        socket.emit("tab-limit-exceeded", { maxLimit: 3 });
-        socket.disconnect(true);
-        return false;
+      // 🛡️ 2. Phase 5: Graceful Tab Limit (Limit max 3 parallel tabs per user, evict stale/oldest other tab)
+      const socketIds = await redis.smembers(userSocketsKey);
+      const activeSocketsInProcess = [];
+
+      for (const oldSid of socketIds) {
+        const connectedSocket = socket.server.sockets.sockets.get(oldSid);
+        if (connectedSocket) {
+          activeSocketsInProcess.push(connectedSocket);
+        } else {
+          // Stale socket ID from previous run or other process, clean it up!
+          await redis.srem(userSocketsKey, oldSid);
+        }
+      }
+
+      if (activeSocketsInProcess.length >= 3) {
+        // Evict the oldest socket belonging to a DIFFERENT tab (don't evict ourselves!)
+        const evictable = activeSocketsInProcess.filter(s => s.id !== sid);
+        if (evictable.length > 0) {
+          const victim = evictable[0];
+          console.warn(`⚠️ [SOCKET LIMIT] User ${uid} tab limit exceeded (3). Evicting session ${victim.id}.`);
+          
+          victim.emit("tab-limit-exceeded", { maxLimit: 3 });
+          victim.disconnect(true);
+          await redis.srem(userSocketsKey, victim.id);
+        }
       }
 
       // Add socket ID
@@ -33,13 +69,13 @@ export const registerUserSocket = async (socket, userId) => {
       // Add to online users
       await redis.sadd(REDIS_KEY_ONLINE_USERS, uid);
       await redis.expire(REDIS_KEY_ONLINE_USERS, 90);
-      
-      return count === 0; // Returns true if this is their first connection
+      const isFirstConnection = activeSocketsInProcess.length === 0;
+      return { success: true, isFirstConnection };
     }
-    return true;
+    return { success: true, isFirstConnection: true };
   } catch (error) {
     console.error("❌ registerUserSocket Redis error:", error.message);
-    return true;
+    return { success: true, isFirstConnection: true };
   }
 };
 

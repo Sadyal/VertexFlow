@@ -2,7 +2,7 @@ import {
   getAllDocsService,
   getDocByIdService,
   createDocService,
-  renameDocService,
+  updateDocService,
   shareDocService,
   deleteDocService,
 } from "./doc.service.js";
@@ -54,23 +54,16 @@ export const createDoc = async (req, res, next) => {
 };
 
 /**
- * ✏️ RENAME
+ * ✏️ UPDATE
  */
-export const renameDoc = async (req, res, next) => {
+export const updateDoc = async (req, res, next) => {
   try {
-    const { title } = req.body;
+    const { title, content } = req.body;
 
-    if (!title || !title.trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Title required",
-      });
-    }
-
-    const doc = await renameDocService(
+    const doc = await updateDocService(
       req.params.id,
       req.userId,
-      title.trim()
+      { title, content }
     );
 
     return res.status(200).json({
@@ -78,6 +71,7 @@ export const renameDoc = async (req, res, next) => {
       data: {
         id: doc._id,
         title: doc.title,
+        updatedAt: doc.updatedAt,
       },
     });
   } catch (err) {
