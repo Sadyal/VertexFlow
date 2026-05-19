@@ -1021,7 +1021,9 @@ const Editor = () => {
 
           {/* 👥 SRE ONLINE COLLABORATORS SIDEBAR PANEL */}
           {isPanelOpen && (
-            <div className="collaborators-sidebar glass-panel animate-slide-right">
+            <>
+              <div className="sidebar-overlay-mobile" onClick={() => setIsPanelOpen(false)} />
+              <div className="collaborators-sidebar glass-panel animate-slide-right">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
                 <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-color)' }}>
                   <Users size={16} /> Collaborators ({collaborators.length})
@@ -1115,7 +1117,8 @@ const Editor = () => {
                 )}
               </div>
             </div>
-          )}
+          </>
+        )}
         </div>
 
         {/* MODALS */}

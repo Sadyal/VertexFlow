@@ -815,13 +815,60 @@ ul[data-type="taskList"] li > div {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+.collaborators-sidebar::before {
+  content: '';
+  display: none;
+  width: 40px;
+  height: 4px;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  margin: -8px auto 8px auto;
+}
+
+/* 📱 MOBILE SIDEBAR TO PREMIUM DRAWER BREAKPOINT */
 @media (max-width: 768px) {
-  .collaborators-sidebar {
+  .sidebar-overlay-mobile {
     position: fixed;
-    right: 1rem;
-    left: 1rem;
-    top: 80px;
-    width: auto;
-    z-index: 1000;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 999;
+    animation: fadeInOverlay 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
   }
+
+  .collaborators-sidebar {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    max-height: 60vh !important;
+    border-radius: 20px 20px 0 0 !important;
+    border: none !important;
+    border-top: 1px solid var(--border-color) !important;
+    z-index: 1000 !important;
+    background-color: var(--bg-secondary) !important;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5) !important;
+    padding: 1.5rem !important;
+    animation: slideUpDrawer 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards !important;
+  }
+
+  .collaborators-sidebar::before {
+    display: block; /* Renders premium native drag handle bar */
+  }
+}
+
+@keyframes fadeInOverlay {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUpDrawer {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
 }
