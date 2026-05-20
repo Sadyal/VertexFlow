@@ -78,16 +78,16 @@ export default function setupSocket(server) {
     const userId = socket.userId;
     console.log("🔌 Connected:", socket.id, "| User:", userId);
 
+    // 🚀 Register handlers immediately (BEFORE async yielding to prevent race condition)
+    registerDocHandlers(io, socket);
+    registerNetworkHandlers(io, socket);
+
     // Register user in Redis (multi-device support)
     const registration = await registerUserSocket(socket, userId);
     if (!registration.success) {
       // Session rejected immediately due to max limit (3 tabs)
       return;
     }
-
-    // 🚀 Register handlers immediately
-    registerDocHandlers(io, socket);
-    registerNetworkHandlers(io, socket);
 
     if (registration.isFirstConnection) {
       await broadcastPresence(io, userId, true);

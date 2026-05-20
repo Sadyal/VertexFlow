@@ -37,6 +37,7 @@ import LexicalTheme from './LexicalTheme';
 import LexicalToolbar from './LexicalToolbar';
 import SocketSyncPlugin from './SocketSyncPlugin';
 import { useAuth } from '../../../context/AuthContext';
+import axios from 'axios';
 import { INSERT_IMAGE_COMMAND, $createImageNode } from './ImageNode.jsx';
 
 // VertexFlow Components & Utils
@@ -115,7 +116,18 @@ const Editor = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { isOnline } = useNetworkStatus();
-  const { user, userAvatar } = useAuth();
+  const { user, userAvatar, isInitializing } = useAuth();
+
+  const userRef = useRef(user);
+  const userAvatarRef = useRef(userAvatar);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    userAvatarRef.current = userAvatar;
+  }, [userAvatar]);
   
   const [doc, setDoc] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -146,6 +158,14 @@ const Editor = () => {
   const [syncState, setSyncState] = useState('synced');
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const prevIdRef = useRef(null);
+
+  // Safe checks for document ownership
+  const currentUserId = user?._id || user?.id;
+  const isOwner = useMemo(() => {
+    if (!doc || !currentUserId) return false;
+    const ownerId = typeof doc.owner === 'object' ? (doc.owner._id || doc.owner.id) : doc.owner;
+    return ownerId === currentUserId;
+  }, [doc, currentUserId]);
 
   // 1. Lexical Configuration
   const initialConfig = useMemo(() => ({
@@ -178,22 +198,12 @@ const Editor = () => {
     );
   }, []);
 
-  // 🔄 REDIRECT ON REFRESH PROTECTION
-  useEffect(() => {
-    const wasRefreshed = sessionStorage.getItem('vf_editor_refresh_redirect');
-    if (wasRefreshed === 'true') {
-      sessionStorage.removeItem('vf_editor_refresh_redirect');
-      if (globalSocket) {
-        globalSocket.disconnect();
-        globalSocket = null;
-      }
-      navigate('/dashboard', { state: { infoMessage: "Document closed due to page refresh." } });
-    }
-  }, [navigate]);
+  // Removed redirect-on-refresh protection to allow standard refreshing and cache restoration
 
   // 2. Socket Connection & Cache Fast-Load (SRE Pooling Model)
   useEffect(() => {
-    if (!user) return; // 🛡️ Wait until user session is loaded to prevent token-missing errors and isolate cache
+    if (isInitializing) return; // 🛡️ Wait for initial session revalidation
+    if (!currentUserId) return; // 🛡️ Wait until user session is loaded to prevent token-missing errors and isolate cache
     
     // 🛡️ SRE PAGE TRANSITION RESET: Reset all document-specific states ONLY when switching documents!
     if (prevIdRef.current !== id) {
@@ -205,7 +215,6 @@ const Editor = () => {
       prevIdRef.current = id;
     }
 
-    const currentUserId = user?._id || user?.id;
     const s = getSharedSocket();
 
     // 🕒 Socket Heartbeat: sliding expire refresh every 20s
@@ -214,17 +223,22 @@ const Editor = () => {
     }, 20000);
 
     const handleConnect = () => {
+      console.log(`[CLIENT SOCKET] handleConnect triggered. DocID: ${id}, SocketID: ${s.id}, Connected: ${s.connected}`);
       if (id) {
         const userMetadata = {
-          name: user?.name || 'Anonymous',
-          avatar: userAvatar || '',
+          name: userRef.current?.name || 'Anonymous',
+          avatar: userAvatarRef.current || '',
           color: '#' + Math.floor(Math.random() * 16777215).toString(16)
         };
+        console.log('[CLIENT SOCKET] Emitting get-document with userMetadata:', userMetadata);
         s.emit('get-document', id, userMetadata);
+      } else {
+        console.warn('[CLIENT SOCKET] handleConnect bypassed: id is missing');
       }
     };
 
     const handleLoadDoc = async (data) => {
+      console.log('[CLIENT SOCKET] Received load-document from server:', data);
       // 🛡️ SRE CHECK: Support both traditional direct string/object payload and new {content, updatedAt} structure!
       const content = data && typeof data === 'object' && 'content' in data ? data.content : data;
       const updatedAt = data && typeof data === 'object' && 'updatedAt' in data ? data.updatedAt : null;
@@ -234,6 +248,7 @@ const Editor = () => {
         if (cachedRecord) {
           // 1. If local draft has unsaved edits, restore it and push it to the server!
           if (cachedRecord.pendingSave) {
+            console.log('[CLIENT SOCKET] Restoring pending local draft cache instead of server:', cachedRecord.content);
             setDocumentContent(cachedRecord.content);
             setIsLoading(false);
             const contentStr = typeof cachedRecord.content === 'string' 
@@ -248,6 +263,7 @@ const Editor = () => {
             const serverTime = new Date(updatedAt).getTime();
             const clientTime = new Date(cachedRecord.updatedAt).getTime();
             if (serverTime <= clientTime) {
+              console.log('[CLIENT SOCKET] Local cache is newer or equal to server. Using cache.');
               setDocumentContent(cachedRecord.content);
               setIsLoading(false);
               return;
@@ -257,6 +273,7 @@ const Editor = () => {
       }
 
       // 3. Otherwise, accept server as the absolute ground truth!
+      console.log('[CLIENT SOCKET] Using server content as absolute ground truth.');
       setDocumentContent(content);
       setIsLoading(false);
       if (currentUserId) {
@@ -264,13 +281,31 @@ const Editor = () => {
       }
     };
 
-    const handleConnectError = (err) => {
-      console.error('Socket connection error:', err);
-      if (err.message?.includes('unauthorized') || err.message?.includes('401')) {
-        navigate('/login');
+    const handleConnectError = async (err) => {
+      console.error('[CLIENT SOCKET] Connection error:', err);
+      if (err.message?.includes('Authentication') || err.message?.includes('token') || err.message?.includes('unauthorized') || err.message?.includes('401')) {
+        try {
+          const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+          console.log('[CLIENT SOCKET] Access token expired or rejected. Attempting cookie refresh...');
+          await axios.post(`${baseUrl}/api/auth/refresh-token`, {}, { withCredentials: true });
+          console.log('[CLIENT SOCKET] Cookie refreshed successfully. Reconnecting...');
+          s.connect();
+          return;
+        } catch (refreshErr) {
+          console.error('[CLIENT SOCKET] Cookie refresh failed. Redirecting to login.', refreshErr);
+          navigate('/login');
+          return;
+        }
       }
       setIsLoading(false);
       setError('Connection failed. Please check your internet or login again.');
+      setSyncState('offline');
+    };
+
+    const handleAccessDenied = () => {
+      console.error('[CLIENT SOCKET] Access Denied event received from server!');
+      setError('Access Denied: You do not have permission to view or edit this document.');
+      setIsLoading(false);
       setSyncState('offline');
     };
 
@@ -319,6 +354,7 @@ const Editor = () => {
     s.on('connect', handleConnect);
     s.on('load-document', handleLoadDoc);
     s.on('connect_error', handleConnectError);
+    s.on('access-denied', handleAccessDenied);
     s.on('receive-title-update', handleTitleUpdate);
     s.on('disconnect', handleDisconnect);
     s.on('reconnect_attempt', handleReconnectAttempt);
@@ -363,6 +399,7 @@ const Editor = () => {
       s.off('connect', handleConnect);
       s.off('load-document', handleLoadDoc);
       s.off('connect_error', handleConnectError);
+      s.off('access-denied', handleAccessDenied);
       s.off('receive-title-update', handleTitleUpdate);
       s.off('disconnect', handleDisconnect);
       s.off('reconnect_attempt', handleReconnectAttempt);
@@ -372,8 +409,13 @@ const Editor = () => {
       s.off('presence-updated', handlePresenceUpdated);
       s.off('presence-left', handlePresenceLeft);
       clearTimeout(safetyTimeout);
+
+      // 🚀 SRE LIFECYCLE INTEGRITY: Cleanly disconnect socket and nullify singleton on unmount
+      // This prevents stale/ghost presence states and guarantees fresh connections on mount.
+      s.disconnect();
+      globalSocket = null;
     };
-  }, [id, navigate, user, userAvatar]); // Added user and userAvatar to dependencies to re-trigger when loaded
+  }, [id, navigate, currentUserId, isInitializing]);
 
   const fetchDoc = useCallback(async () => {
     try {
@@ -758,7 +800,7 @@ const Editor = () => {
                         marginLeft: '-8px',
                         zIndex: 10
                       }}
-                      title={`${c.name || 'Collaborator'} (${c.status || 'online'})`}
+                      title={`${c.name || 'Collaborator'} (${c.role || 'Collaborator'} - ${c.status || 'online'})`}
                     >
                       {c.avatar ? (
                         <img src={c.avatar} alt={c.name} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
@@ -876,9 +918,11 @@ const Editor = () => {
                 )}
               </div>
 
-              <Button variant="secondary" onClick={() => setIsShareModalOpen(true)}>
-                <Share2 size={16} /> Share
-              </Button>
+              {isOwner && (
+                <Button variant="secondary" onClick={() => setIsShareModalOpen(true)}>
+                  <Share2 size={16} /> Share
+                </Button>
+              )}
               <Button onClick={handleSave} isLoading={isSaving} className="glow-on-hover">
                 <Save size={16} /> Save
               </Button>
@@ -948,12 +992,16 @@ const Editor = () => {
                     <button className="more-menu-item" onClick={() => { handleSave(); setIsMoreMenuOpen(false); }}>
                       <Save size={18} /> Save Changes
                     </button>
-                    <button className="more-menu-item" onClick={() => { setIsShareModalOpen(true); setIsMoreMenuOpen(false); }}>
-                      <Share2 size={18} /> Share Doc
-                    </button>
-                    <button className="more-menu-item delete" onClick={() => { setIsMoreMenuOpen(false); setIsDeleteModalOpen(true); }}>
-                      <Trash2 size={18} /> Delete Doc
-                    </button>
+                    {isOwner && (
+                      <>
+                        <button className="more-menu-item" onClick={() => { setIsShareModalOpen(true); setIsMoreMenuOpen(false); }}>
+                          <Share2 size={18} /> Share Doc
+                        </button>
+                        <button className="more-menu-item delete" onClick={() => { setIsMoreMenuOpen(false); setIsDeleteModalOpen(true); }}>
+                          <Trash2 size={18} /> Delete Doc
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1117,7 +1165,21 @@ const Editor = () => {
 
                         {/* Name & status */}
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--text-color)' }}>{c.name || 'Anonymous'}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--text-color)' }}>{c.name || 'Anonymous'}</span>
+                            {c.role && (
+                              <span style={{
+                                fontSize: '9px',
+                                padding: '1px 5px',
+                                borderRadius: '4px',
+                                backgroundColor: c.role === 'Admin' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                                color: c.role === 'Admin' ? '#ef4444' : '#6366f1',
+                                fontWeight: 'bold'
+                              }}>
+                                {c.role}
+                              </span>
+                            )}
+                          </div>
                           <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
                             {c.isTyping ? '✍️ Typing...' : isIdle ? 'Idle' : 'Active'}
                           </span>

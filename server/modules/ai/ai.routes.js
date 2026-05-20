@@ -16,12 +16,13 @@ const aiLimiter = rateLimit({
   max: 50, // Limit each user to 50 requests per window
   keyGenerator: (req) => {
     // Rate limit strictly by their authenticated database User ID!
-    // Fall back to IP address only if the user session is missing.
-    return req.user?.id || req.user?._id || req.ip;
+    // Since authMiddleware runs BEFORE this, req.user is guaranteed to exist.
+    return req.user?.id || req.user?._id || "anonymous";
   },
   message: { success: false, message: "Too many AI requests, please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { default: false },
 });
 
 // All AI routes require authentication and have strict rate limits

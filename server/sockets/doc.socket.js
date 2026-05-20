@@ -26,23 +26,35 @@ export const registerDocHandlers = (io, socket) => {
 
   // LOAD DOCUMENT (With granular SRE Presence & Awareness setup)
   socket.on("get-document", async (docId, userMetadata) => {
+    console.log(`[SOCKET SERVER] get-document received. SocketID: ${socket.id}, DocID: ${docId}, UserID: ${socket.userId}`);
     try {
-      if (!docId) return;
+      if (!docId) {
+        console.warn(`[SOCKET SERVER] Rejected: docId is missing.`);
+        return;
+      }
 
       const doc = await Document.findById(docId);
 
       if (!doc) {
+        console.warn(`[SOCKET SERVER] Rejected: Document with ID ${docId} not found in database.`);
         return socket.emit("access-denied");
       }
 
       const userId = socket.userId;
+      if (!userId) {
+        console.error(`[SOCKET SERVER] Rejected: socket.userId is missing/undefined on connection ${socket.id}!`);
+        return socket.emit("access-denied");
+      }
 
       const isOwner = doc.owner.toString() === userId;
       const isCollaborator = doc.collaborators
         .map((id) => id.toString())
         .includes(userId);
 
+      console.log(`[SOCKET SERVER] Auth check for Doc ${docId}: Owner=${doc.owner.toString()}, UserID=${userId}, isOwner=${isOwner}, isCollaborator=${isCollaborator}`);
+
       if (!isOwner && !isCollaborator) {
+        console.warn(`[SOCKET SERVER] Access Denied: User ${userId} is neither Owner nor Collaborator of Doc ${docId}`);
         return socket.emit("access-denied");
       }
 
@@ -69,22 +81,28 @@ export const registerDocHandlers = (io, socket) => {
 
       // 1. Fetch other active sockets in this room to compile full presence list
       const sockets = await io.in(docId).fetchSockets();
-      const members = sockets.map(s => ({
-        socketId: s.id,
-        userId: s.userId,
-        ...s.userMetadata,
-        status: s.presenceStatus || "online",
-        isTyping: s.isTyping || false,
-        cursor: s.cursorPosition || null,
-        activeBlock: s.activeBlockPosition || null
-      }));
+      const members = sockets.map(s => {
+        const role = (doc.owner.toString() === s.userId) ? "Admin" : "Collaborator";
+        return {
+          socketId: s.id,
+          userId: s.userId,
+          ...s.userMetadata,
+          role,
+          status: s.presenceStatus || "online",
+          isTyping: s.isTyping || false,
+          cursor: s.cursorPosition || null,
+          activeBlock: s.activeBlockPosition || null
+        };
+      });
       socket.emit("presence-list", members);
 
       // 2. Broadcast presence-joined to other members in the room
+      const myRole = (doc.owner.toString() === socket.userId) ? "Admin" : "Collaborator";
       socket.broadcast.to(docId).emit("presence-joined", {
         socketId: socket.id,
         userId: socket.userId,
         ...socket.userMetadata,
+        role: myRole,
         status: "online",
         isTyping: false
       });

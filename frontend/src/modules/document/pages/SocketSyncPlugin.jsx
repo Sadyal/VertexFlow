@@ -8,7 +8,27 @@ import { db } from '../../../utils/db';
  * 🚀 SRE Conflict-Free Block-Level Merging Engine
  * Prevents concurrent edit overwrites when multiple users modify different paragraphs.
  */
-function mergeLexicalStates(localJSON, remoteJSON, localActiveBlockKey, isLocalTyping) {
+/**
+ * Helper to extract keys from a Lexical state JSON object
+ */
+function getKeysFromJSON(json) {
+  const keys = new Set();
+  if (json?.root?.children) {
+    for (const child of json.root.children) {
+      if (child.key) {
+        keys.add(child.key);
+      }
+    }
+  }
+  return keys;
+}
+
+/**
+ * 🚀 SRE Conflict-Free Key-Based Paragraph Merging Engine
+ * Prevents paragraph duplication and order swapping by doing structural key-based merging.
+ * Uses lastAuthoritativeState (lastContentRef) to differentiate between local additions and remote deletions.
+ */
+function mergeLexicalStates(localJSON, remoteJSON, localActiveBlockKey, isLocalTyping, syncedKeys) {
   if (!localJSON?.root?.children || !remoteJSON?.root?.children) {
     return remoteJSON; // Fallback to remote authoritative copy if malformed
   }
@@ -16,29 +36,60 @@ function mergeLexicalStates(localJSON, remoteJSON, localActiveBlockKey, isLocalT
   const localChildren = localJSON.root.children;
   const remoteChildren = remoteJSON.root.children;
 
+  const localMap = new Map(localChildren.map(node => [node.key, node]));
+  const remoteKeys = new Set(remoteChildren.map(node => node.key));
+
+  // Step 1: Initialize merged list based on remote children as the source of truth
   const mergedChildren = [];
-  const maxLen = Math.max(localChildren.length, remoteChildren.length);
-
-  for (let i = 0; i < maxLen; i++) {
-    const localNode = localChildren[i];
-    const remoteNode = remoteChildren[i];
-
-    if (!localNode) {
-      // Block added remotely, safe to append
+  for (const remoteNode of remoteChildren) {
+    const localNode = localMap.get(remoteNode.key);
+    if (localNode && isLocalTyping && remoteNode.key === localActiveBlockKey) {
+      // Keep local active node to preserve active typing state
+      mergedChildren.push(localNode);
+    } else {
+      // Accept remote authoritative updates
       mergedChildren.push(remoteNode);
-    } else if (!remoteNode) {
-      // Block deleted remotely. Protect if local user is actively typing inside this block
-      const isLocked = isLocalTyping && localNode.key === localActiveBlockKey;
-      if (isLocked) {
-        mergedChildren.push(localNode); // Keep local draft
+    }
+  }
+
+  // Step 2: Traverse local nodes in order, inserting local-only additions at their relative index
+  let lastInsertedIndex = -1;
+  for (let i = 0; i < localChildren.length; i++) {
+    const localNode = localChildren[i];
+    if (!remoteKeys.has(localNode.key)) {
+      // Determine if this is a genuine new local addition or a deleted remote node
+      const isNewLocalNode = !syncedKeys.has(localNode.key);
+      const isActiveTypingNode = isLocalTyping && localNode.key === localActiveBlockKey;
+
+      if (isNewLocalNode || isActiveTypingNode) {
+        // Find the predecessor in localChildren that is also in remoteKeys
+        let predecessorKey = null;
+        for (let j = i - 1; j >= 0; j--) {
+          if (remoteKeys.has(localChildren[j].key)) {
+            predecessorKey = localChildren[j].key;
+            break;
+          }
+        }
+
+        let insertIndex = 0;
+        if (predecessorKey !== null) {
+          const predIdx = mergedChildren.findIndex(n => n.key === predecessorKey);
+          if (predIdx !== -1) {
+            insertIndex = predIdx + 1;
+          }
+        } else {
+          // If no predecessor, insert after the last inserted index
+          insertIndex = Math.max(0, lastInsertedIndex + 1);
+        }
+
+        mergedChildren.splice(insertIndex, 0, localNode);
+        lastInsertedIndex = insertIndex;
       }
     } else {
-      // Block exists in both. Protect if local user is actively typing inside this block
-      const isLocked = isLocalTyping && localNode.key === localActiveBlockKey;
-      if (isLocked) {
-        mergedChildren.push(localNode); // Protect active local paragraph from override
-      } else {
-        mergedChildren.push(remoteNode); // Accept remote change safely
+      // Track index of current successfully mapped node in mergedChildren
+      const idx = mergedChildren.findIndex(n => n.key === localNode.key);
+      if (idx !== -1) {
+        lastInsertedIndex = idx;
       }
     }
   }
@@ -158,6 +209,7 @@ export default function SocketSyncPlugin({
       }
 
       // First time initialization (usually from Cache)
+      isUpdatingRef.current = true;
       try {
         const contentToParse = contentString.startsWith('{') ? JSON.parse(contentString) : contentString;
         const parsedState = editor.parseEditorState(contentToParse);
@@ -181,6 +233,8 @@ export default function SocketSyncPlugin({
         });
         lastContentRef.current = contentString;
         hasInitializedRef.current = true;
+      } finally {
+        setTimeout(() => { isUpdatingRef.current = false; }, 100);
       }
     };
 
@@ -214,7 +268,31 @@ export default function SocketSyncPlugin({
 
       try {
         const localJSON = editor.getEditorState().toJSON();
-        const mergedJSON = mergeLexicalStates(localJSON, stateJSON, localActiveBlockKeyRef.current, isLocalTypingRef.current);
+        
+        // Parse last successfully synced content to determine which keys already existed
+        let syncedKeys = new Set();
+        if (lastContentRef.current) {
+          try {
+            const parsed = typeof lastContentRef.current === 'string'
+              ? JSON.parse(lastContentRef.current)
+              : lastContentRef.current;
+            if (parsed?.root?.children) {
+              for (const child of parsed.root.children) {
+                if (child.key) syncedKeys.add(child.key);
+              }
+            }
+          } catch (e) {
+            console.error('Failed to extract syncedKeys:', e);
+          }
+        }
+
+        const mergedJSON = mergeLexicalStates(
+          localJSON, 
+          stateJSON, 
+          localActiveBlockKeyRef.current, 
+          isLocalTypingRef.current,
+          syncedKeys
+        );
         const parsedState = editor.parseEditorState(mergedJSON);
         
         editor.setEditorState(parsedState, { tag: 'remote' });
@@ -317,38 +395,48 @@ export default function SocketSyncPlugin({
     });
 
     // 🛡️ SRE PRESENCE SELF-HEALING: Automatically re-emit presence/selection details when socket reconnects!
+    // Added a 150ms delay to resolve the handshake race condition where presence-update is processed before get-document room join.
     const handleConnect = () => {
-      editor.getEditorState().read(() => {
-        const selection = $getSelection();
-        if ($isRangeSelection(selection)) {
-          const anchor = selection.anchor;
-          let blockNode = anchor.getNode();
-          while (blockNode && blockNode.getParent() && blockNode.getParent().getType() !== 'root') {
-            blockNode = blockNode.getParent();
+      setTimeout(() => {
+        if (!socket || !socket.connected) return;
+        editor.getEditorState().read(() => {
+          const selection = $getSelection();
+          if ($isRangeSelection(selection)) {
+            const anchor = selection.anchor;
+            let blockNode = anchor.getNode();
+            while (blockNode && blockNode.getParent() && blockNode.getParent().getType() !== 'root') {
+              blockNode = blockNode.getParent();
+            }
+            if (blockNode) {
+              socket.emit('presence-update', {
+                status: localStatusRef.current,
+                isTyping: isLocalTypingRef.current,
+                cursor: lastCursorRef.current,
+                activeBlock: { key: blockNode.getKey(), type: blockNode.getType() }
+              });
+              return;
+            }
           }
-          if (blockNode) {
-            socket.emit('presence-update', {
-              status: localStatusRef.current,
-              isTyping: isLocalTypingRef.current,
-              cursor: lastCursorRef.current,
-              activeBlock: { key: blockNode.getKey(), type: blockNode.getType() }
-            });
-            return;
-          }
-        }
-        socket.emit('presence-update', {
-          status: localStatusRef.current,
-          isTyping: isLocalTypingRef.current,
-          cursor: lastCursorRef.current
+          socket.emit('presence-update', {
+            status: localStatusRef.current,
+            isTyping: isLocalTypingRef.current,
+            cursor: lastCursorRef.current
+          });
         });
-      });
+      }, 500);
     };
 
     socket.on('connect', handleConnect);
 
+    // 🛡️ SRE PRESENCE SELF-HEALING: If socket is already connected (due to skeleton lazy loading race),
+    // manually trigger handleConnect immediately to publish initial online presence state!
+    if (socket.connected) {
+      handleConnect();
+    }
+
     // 🚀 Handle window close / tab switch
     const handleBeforeUnload = () => {
-      sessionStorage.setItem('vf_editor_refresh_redirect', 'true');
+      // Allow normal page refreshes without triggering forced redirects on reload
       flushSave();
     };
     window.addEventListener('beforeunload', handleBeforeUnload);

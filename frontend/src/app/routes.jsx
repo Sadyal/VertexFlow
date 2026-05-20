@@ -56,11 +56,12 @@ const AppRoutes = () => {
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/docs/:id" element={<Editor />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/network" element={<Network />} />
             <Route path="/social" element={<SocialHub />} />
           </Route>
+          {/* Isolated dedicated full-screen editor layout */}
+          <Route path="/docs/:id" element={<Editor />} />
         </Route>
 
         {/* 🛡️ ADMIN ROUTES (Strictly Isolated & Lazy Loaded) */}

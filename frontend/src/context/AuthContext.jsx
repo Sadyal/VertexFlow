@@ -34,7 +34,7 @@ export const AuthProvider = ({ children }) => {
   // ==========================================
   const [user, setUser] = useState(() => storage.get('user', null));
   const [userAvatar, setUserAvatar] = useState(null);
-  const [isInitializing, setIsInitializing] = useState(() => !localStorage.getItem('user'));
+  const [isInitializing, setIsInitializing] = useState(true);
   
   const authChannelRef = useRef(null);
   const lastCheckedRef = useRef(Date.now());

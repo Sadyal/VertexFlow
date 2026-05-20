@@ -872,3 +872,22 @@ ul[data-type="taskList"] li > div {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
+
+/* 📱 MOBILE SCREEN OPTIMIZATIONS FOR HEADER & TEXT */
+@media (max-width: 768px) {
+  .editor-title-input {
+    font-size: 1.15rem !important;
+  }
+  .avatar-circle-wrapper {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+  }
+  .plus-more {
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+  }
+}
