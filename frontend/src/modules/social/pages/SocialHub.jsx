@@ -143,15 +143,7 @@ const SocialHub = () => {
   const firstImageIndex = useMemo(() => posts.findIndex(p => p.image), [posts]);
 
   return (
-    <div className="social-hub-container animate-fade-in">
-      <header className="social-header">
-        <h1 className="social-title">
-          <Globe className="accent-icon" size={32} style={{ marginRight: '0.75rem', verticalAlign: 'middle' }} />
-          Social Hub
-        </h1>
-        <p className="dashboard-subtitle">Connect, share, and grow with the community</p>
-      </header>
-
+    <div className="social-hub-container animate-fade-in" style={{ paddingTop: '2rem' }}>
       <CreatePost onPostCreated={createPost} isLoading={isSubmitting} />
 
       <div className="feed-actions" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', alignItems: 'center' }}>

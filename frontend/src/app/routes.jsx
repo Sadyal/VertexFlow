@@ -16,15 +16,17 @@ const VerifyEmail = lazy(() => import('../modules/auth/pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('../modules/auth/pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('../modules/auth/pages/ResetPassword'));
 
-// App pages
-const Home = lazy(() => import('../pages/Home'));
-const Dashboard = lazy(() => import('../modules/document/pages/Dashboard'));
-const Network = lazy(() => import('../modules/network/pages/Network'));
-const Editor = lazy(() => import('../modules/document/pages/Editor'));
-const Profile = lazy(() => import('../modules/user/pages/Profile'));
-const SocialHub = lazy(() => import('../modules/social/pages/SocialHub.jsx'));
+// Eagerly loaded core views for instantaneous (0ms) route transitions
+import Home from '../pages/Home';
+import Dashboard from '../modules/document/pages/Dashboard';
+import Network from '../modules/network/pages/Network';
+import Profile from '../modules/user/pages/Profile';
+import SocialHub from '../modules/social/pages/SocialHub.jsx';
 
-// Admin (Code Split)
+// Code-split heavy views to preserve tiny initial load bundle sizes
+const Editor = lazy(() => import('../modules/document/pages/Editor'));
+
+// Admin (Code Split & Strictly Isolated)
 import AdminRoute from '../components/common/AdminRoute';
 const AdminLayout = lazy(() => import('../modules/admin/layout/AdminLayout'));
 const AdminDashboard = lazy(() => import('../modules/admin/pages/AdminDashboard'));

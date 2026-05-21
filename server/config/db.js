@@ -7,6 +7,10 @@ const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI, {
       dbName: "livesync", // optional but recommended
+      maxPoolSize: 100,  // pre-allocate pool up to 100 connections
+      minPoolSize: 10,   // keep 10 connections warm to avoid handshake delays
+      socketTimeoutMS: 45000, // close idle sockets after 45s
+      serverSelectionTimeoutMS: 5000, // timeout fast if DB goes down
     });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);

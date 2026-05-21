@@ -1,4 +1,4 @@
-import bcrypt from "bcryptjs";
+import * as bcrypt from "../../utils/bcrypt.js";
 import validator from "validator";
 import userModel from "../../models/user.model.js";
 import {
