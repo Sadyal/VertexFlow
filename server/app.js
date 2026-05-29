@@ -14,8 +14,6 @@ import { globalLimiter } from "./middleware/rateLimiter.js";
 import maintenanceMiddleware from "./middleware/maintenance.middleware.js";
 import socialRoutes from "./modules/social/social.routes.js";
 import userRoutes from "./modules/user/user.routes.js";
-import User from "./models/user.model.js";
-import Activity from "./models/activity.model.js";
 import { requestTimeout, payloadSanitizer, malformedJsonHandler } from "./middleware/protection.middleware.js";
 
 const app = express();
@@ -71,6 +69,18 @@ app.use(
 );
 
 /**
+ * ❤️ LIGHTWEIGHT KEEP-ALIVE PING (Zero Database Overhead)
+ * Call this every 15 minutes to keep free-tier containers awake.
+ */
+app.get("/api/ping", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "pong",
+    timestamp: Date.now()
+  });
+});
+
+/**
  * 🔐 SECURITY HEADERS & RATE LIMITING
  */
 app.use(helmet({
@@ -121,87 +131,6 @@ app.get("/", (req, res) => {
   });
 });
 
-/**
- * 🧹 SECURE DATABASE CLEANUP / CRON JOB (FREE METHOD)
- * Call this endpoint from a free pinger service like Cron-job.org or UptimeRobot.
- * Secured via query parameter: ?secret=YOUR_CRON_SECRET
- */
-app.get("/api/cron-cleanup", async (req, res) => {
-  const isProd = process.env.NODE_ENV === "production";
-  const cronSecret = process.env.CRON_SECRET || (!isProd ? "default_super_secret_token_123456" : null);
-  
-  if (isProd && !process.env.CRON_SECRET) {
-    console.error("🚨 [SECURITY ALERT] CRON_SECRET environment variable is missing in production! Cleanup endpoint is disabled.");
-    return res.status(500).json({
-      success: false,
-      message: "Configuration error: Database maintenance is not secure.",
-    });
-  }
-
-  const incomingSecret = req.query.secret || req.headers["x-cron-secret"];
-
-  if (!incomingSecret || incomingSecret !== cronSecret) {
-    return res.status(401).json({
-      success: false,
-      message: "Unauthorized: Invalid or missing cron secret.",
-    });
-  }
-
-  console.log("🚀 External HTTP Cron Triggered: Starting DB Maintenance...");
-  const startTime = Date.now();
-
-  try {
-    const now = Date.now();
-
-    // 1. Clear expired verification OTPs
-    const verifyOtpResult = await User.updateMany(
-      { verifyOtpExpireAt: { $gt: 0, $lt: now } },
-      { $set: { verifyOtp: "", verifyOtpExpireAt: 0 } }
-    );
-
-    // 2. Clear expired password reset OTPs
-    const resetOtpResult = await User.updateMany(
-      { resetOtpExpireAt: { $gt: 0, $lt: now } },
-      { $set: { resetOtp: "", resetOtpExpireAt: 0 } }
-    );
-
-    // 3. Delete unverified guest accounts older than 24 hours
-    const unverifiedThreshold = new Date(now - 24 * 60 * 60 * 1000);
-    const deletedUnverifiedResult = await User.deleteMany({
-      isAccountVerified: false,
-      createdAt: { $lt: unverifiedThreshold }
-    });
-
-    // 4. Trim activity log entries older than 30 days
-    const activityThreshold = new Date(now - 30 * 24 * 60 * 60 * 1000);
-    const deletedActivitiesResult = await Activity.deleteMany({
-      createdAt: { $lt: activityThreshold }
-    });
-
-    const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-    const logMsg = `✨ DB Maintenance complete in ${duration}s. OTPs: ${verifyOtpResult.modifiedCount} verif / ${resetOtpResult.modifiedCount} reset. Users deleted: ${deletedUnverifiedResult.deletedCount}. Logs pruned: ${deletedActivitiesResult.deletedCount}.`;
-    console.log(logMsg);
-
-    return res.status(200).json({
-      success: true,
-      message: "Database maintenance executed successfully.",
-      duration: `${duration}s`,
-      stats: {
-        clearedVerifyOtps: verifyOtpResult.modifiedCount,
-        clearedResetOtps: resetOtpResult.modifiedCount,
-        deletedUnverifiedUsers: deletedUnverifiedResult.deletedCount,
-        prunedActivityLogs: deletedActivitiesResult.deletedCount
-      }
-    });
-  } catch (error) {
-    console.error("❌ External HTTP Cron DB Maintenance failed:", error.message);
-    return res.status(500).json({
-      success: false,
-      message: "Database maintenance execution failed.",
-      error: error.message
-    });
-  }
-});
 
 import trackingMiddleware from "./middleware/tracking.middleware.js";
 import adminRoutes from "./modules/admin/admin.routes.js";
