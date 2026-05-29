@@ -122,8 +122,8 @@ const AdminUsers = () => {
 
   // Unified Data Hook
   const fetcher = useCallback((page) => {
-    return adminApi.getUsersList(page, 10, debouncedSearch);
-  }, [debouncedSearch]);
+    return adminApi.getUsersList(page, 10, debouncedSearch, roleFilter);
+  }, [debouncedSearch, roleFilter]);
   
   const cacheKey = useMemo(() => ({ 
     type: 'list', 
@@ -132,23 +132,16 @@ const AdminUsers = () => {
   }), [currentPage, debouncedSearch, roleFilter]);
 
   const { 
-    data: rawUsers, 
+    data: users, 
     isLoading, 
     fetchData, 
     pagination, 
     setData 
   } = useAdminData(fetcher, cacheKey);
 
-  // 🚀 Frontend Filtering for Role
-  const users = useMemo(() => {
-    if (!rawUsers) return null;
-    if (roleFilter === 'all') return rawUsers;
-    return rawUsers.filter(u => u.role === roleFilter);
-  }, [rawUsers, roleFilter]);
-
   useEffect(() => {
     fetchData(currentPage);
-  }, [debouncedSearch, currentPage, fetchData]);
+  }, [debouncedSearch, currentPage, roleFilter, fetchData]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= (pagination?.pages || 1)) {

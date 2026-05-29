@@ -215,13 +215,13 @@ app.use(trackingMiddleware);
 /**
  * 🚀 ROUTES
  */
-app.use("/api/social", socialRoutes); // ⚡ High priority for multipart handling
 app.use("/api/auth", authRoutes);
-app.use("/api/user", userRoutes);
 
 // 🛠️ PLATFORM SECURITY: Maintenance Enforcement
 app.use(maintenanceMiddleware);
 
+app.use("/api/social", socialRoutes); // ⚡ High priority for multipart handling
+app.use("/api/user", userRoutes);
 app.use("/api/docs", docRoutes);
 app.use("/api/network", networkRoutes);
 app.use("/api/ai", aiRoutes);

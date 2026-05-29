@@ -3,6 +3,8 @@ import Document from "../../models/document.model.js";
 import Analytics from "../../models/analytics.model.js";
 import Settings from "../../models/settings.model.js";
 import Post from "../../models/post.model.js";
+import Comment from "../../models/comment.model.js";
+import Like from "../../models/like.model.js";
 
 /**
  * @desc    Get dashboard overview statistics
@@ -12,7 +14,7 @@ import Post from "../../models/post.model.js";
 export const getDashboardStats = async (req, res, next) => {
   try {
     // 🚀 PERFORMANCE OPTIMIZATION: Run all counts and queries in parallel
-    const [totalUsers, verifiedUsers, recentUsers, totalDocs, docStats, analyticsData, totalPosts, socialStats] = await Promise.all([
+    const [totalUsers, verifiedUsers, recentUsers, totalDocs, docStats, analyticsData, totalPosts, totalLikes, totalComments] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ isAccountVerified: true }),
       User.countDocuments({ createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } }),
@@ -27,21 +29,11 @@ export const getDashboardStats = async (req, res, next) => {
       ]),
       Analytics.find().sort({ date: -1 }).limit(7).lean(),
       Post.countDocuments({ isDeleted: { $ne: true } }),
-      Post.aggregate([
-        { $match: { isDeleted: { $ne: true } } },
-        {
-          $group: {
-            _id: null,
-            totalLikes: { $sum: { $size: { $ifNull: ["$likes", []] } } },
-            totalComments: { $sum: { $size: { $ifNull: ["$comments", []] } } }
-          }
-        }
-      ])
+      Like.countDocuments(),
+      Comment.countDocuments()
     ]);
 
     const totalCollaborations = docStats.length > 0 ? docStats[0].totalCollabs : 0;
-    const totalLikes = socialStats.length > 0 ? socialStats[0].totalLikes : 0;
-    const totalComments = socialStats.length > 0 ? socialStats[0].totalComments : 0;
 
     // Create a map of existing data
     const analyticsMap = new Map(analyticsData.map(item => [item.date, item]));
@@ -98,14 +90,20 @@ export const getUsersList = async (req, res, next) => {
     const limit = parseInt(req.query.limit, 10) || 10;
     const startIndex = (page - 1) * limit;
 
-    // Search by name or email
+    // Search by name or email, and filter by role
     const search = req.query.search || "";
-    const query = search ? {
-      $or: [
+    const role = req.query.role || "all";
+
+    const query = {};
+    if (search) {
+      query.$or = [
         { name: { $regex: search, $options: "i" } },
         { email: { $regex: search, $options: "i" } }
-      ]
-    } : {};
+      ];
+    }
+    if (role !== "all") {
+      query.role = role;
+    }
 
     const total = await User.countDocuments(query);
     const users = await User.find(query)
@@ -234,10 +232,20 @@ export const getSettings = async (req, res, next) => {
  */
 export const updateSettings = async (req, res, next) => {
   try {
+    const { registrationMode, requireEmailVerification, defaultAiModel, maxTokensPerRequest, maintenanceMode, platformName } = req.body;
+
+    const updateData = {};
+    if (registrationMode !== undefined) updateData.registrationMode = registrationMode;
+    if (requireEmailVerification !== undefined) updateData.requireEmailVerification = requireEmailVerification;
+    if (defaultAiModel !== undefined) updateData.defaultAiModel = defaultAiModel;
+    if (maxTokensPerRequest !== undefined) updateData.maxTokensPerRequest = maxTokensPerRequest;
+    if (maintenanceMode !== undefined) updateData.maintenanceMode = maintenanceMode;
+    if (platformName !== undefined) updateData.platformName = platformName;
+
     const settings = await Settings.findOneAndUpdate(
       {},
-      { $set: req.body },
-      { returnDocument: 'after', upsert: true }
+      { $set: updateData },
+      { returnDocument: 'after', upsert: true, runValidators: true }
     );
     res.status(200).json({ success: true, data: settings, message: "Settings saved successfully" });
   } catch (error) {
@@ -264,8 +272,13 @@ export const runMaintenance = async (req, res, next) => {
     }
     
     if (action === "purge_docs") {
-      // Delete documents that have no content (placeholder logic for orphaned docs)
-      const result = await Document.deleteMany({ title: "Untitled Document", collaborators: { $size: 0 } });
+      // Delete documents that have no content and were created more than 24 hours ago (preventing active document deletion)
+      const threshold = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const result = await Document.deleteMany({ 
+        title: "Untitled Document", 
+        collaborators: { $size: 0 },
+        createdAt: { $lt: threshold }
+      });
       return res.status(200).json({ success: true, message: `Purged ${result.deletedCount} empty/orphaned documents.` });
     }
 
@@ -323,6 +336,10 @@ export const updateUser = async (req, res, next) => {
     const { id } = req.params;
     const { role } = req.body;
 
+    if (id === req.userId) {
+      return res.status(400).json({ success: false, message: "You cannot change your own role to prevent administrative lockout." });
+    }
+
     const user = await User.findByIdAndUpdate(id, { role }, { returnDocument: 'after' });
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
@@ -341,6 +358,10 @@ export const updateUser = async (req, res, next) => {
 export const deleteUser = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    if (id === req.userId) {
+      return res.status(400).json({ success: false, message: "You cannot delete your own admin account." });
+    }
 
     // 1. Delete user's documents
     await Document.deleteMany({ owner: id });
@@ -402,12 +423,40 @@ export const getPostsList = async (req, res, next) => {
       .limit(limit)
       .lean();
 
+    const postIds = posts.map(p => p._id);
+
+    const [likeCounts, comments] = await Promise.all([
+      Like.aggregate([
+        { $match: { post: { $in: postIds } } },
+        { $group: { _id: "$post", count: { $sum: 1 } } }
+      ]),
+      Comment.find({ post: { $in: postIds } })
+        .populate('user', 'name avatar')
+        .sort({ createdAt: -1 })
+        .lean()
+    ]);
+
+    const likeCountMap = new Map(likeCounts.map(lc => [lc._id.toString(), lc.count]));
+    const commentsMap = new Map();
+    comments.forEach(comment => {
+      const postIdStr = comment.post.toString();
+      if (!commentsMap.has(postIdStr)) {
+        commentsMap.set(postIdStr, []);
+      }
+      commentsMap.get(postIdStr).push(comment);
+    });
+
     // Map likesCount and commentsCount to fit the expected structure
-    const enrichedPosts = posts.map(post => ({
-      ...post,
-      likesCount: post.likes?.length || 0,
-      commentsCount: post.comments?.length || 0
-    }));
+    const enrichedPosts = posts.map(post => {
+      const postIdStr = post._id.toString();
+      const postComments = commentsMap.get(postIdStr) || [];
+      return {
+        ...post,
+        likesCount: likeCountMap.get(postIdStr) || 0,
+        commentsCount: postComments.length,
+        comments: postComments
+      };
+    });
 
     res.status(200).json({
       success: true,
@@ -438,6 +487,10 @@ export const deletePost = async (req, res, next) => {
 
     post.isDeleted = true;
     await post.save();
+
+    // Clean up isolated comments/likes asynchronously
+    Comment.deleteMany({ post: id }).catch(e => console.error("❌ Comment delete clean failed", e.message));
+    Like.deleteMany({ post: id }).catch(e => console.error("❌ Like delete clean failed", e.message));
 
     res.status(200).json({ success: true, message: "Post moderated and deleted successfully" });
   } catch (error) {

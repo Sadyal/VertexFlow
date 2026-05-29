@@ -10,8 +10,8 @@ export const adminApi = {
     return response.data;
   },
 
-  getUsersList: async (page = 1, limit = 10, search = '') => {
-    const response = await api.get(`/api/admin/users?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}`);
+  getUsersList: async (page = 1, limit = 10, search = '', role = 'all') => {
+    const response = await api.get(`/api/admin/users?page=${page}&limit=${limit}&search=${encodeURIComponent(search)}&role=${role}`);
     return response.data;
   },
 
