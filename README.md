@@ -1,119 +1,238 @@
-# 🌐 VertexFlow: The Enterprise-Grade AI Workspace
+# 🌐 VertexFlow: The Enterprise-Grade Collaborative AI Workspace
 
 [![Production Stable](https://img.shields.io/badge/Status-Production--Stable-success?style=for-the-badge)](https://vertexflow.vercel.app)
 [![Tech Stack](https://img.shields.io/badge/Stack-MERN--Plus-blue?style=for-the-badge)](https://github.com/Sadyal/VertexFlow)
 [![License](https://img.shields.io/badge/License-MIT-orange?style=for-the-badge)](LICENSE)
 
-**VertexFlow** is a high-performance, professional-grade workspace platform that synthesizes the collaborative power of Google Docs with the networking depth of LinkedIn. Built on a modular MERN architecture and powered by Meta's Lexical engine, it delivers a seamless, real-time experience for modern professionals and teams.
+**VertexFlow** is a premium, high-performance workspace platform that combines the collaborative utility of real-time editing (similar to Google Docs) with the professional networking depth of social channels (similar to LinkedIn). 
+
+Engineered with a robust, modular **MERN** architecture, it uses **Meta's Lexical** engine for rich text manipulation, **Socket.io** for real-time document synchronization and presence, **Redis** for clustered multi-tab state tracking, and **Groq (Llama 3.3 70B)** for a contextual AI copilot.
 
 ---
 
 ## 🏛️ System Architecture
 
-VertexFlow is engineered for horizontal scalability and low-latency interaction.
+VertexFlow is built for horizontal scalability, low latency, and cluster-safe operations.
 
 ```mermaid
 graph TD
-    User((User)) -->|React 19| Frontend[Vite Frontend]
-    Frontend -->|Socket.io| LB[Load Balancer / Redis Adapter]
-    LB -->|WS Sync| Backend[Node.js Cluster]
-    Backend -->|Mongoose| MongoDB[(MongoDB Atlas)]
-    Backend -->|ioredis| Redis[(Redis Presence)]
-    Backend -->|Groq API| AI[Llama 3.3 AI]
-    Frontend -->|idb| Cache[(IndexedDB Cache)]
+    User((User Client)) -->|React 19 / Vite| FE[Vite Frontend]
+    FE -->|Socket.io| WS_Adapter[Socket.io Redis Adapter]
+    WS_Adapter -->|Websocket Sync| ServerCluster[Node.js Clustered Servers]
+    ServerCluster -->|Mongoose| MongoDB[(MongoDB Atlas)]
+    ServerCluster -->|ioredis| Redis[(Redis Presence & Sessions)]
+    ServerCluster -->|Groq SDK| LlamaAI[Llama 3.3 AI Copilot]
+    ServerCluster -->|Cloudinary SDK| CloudImage[Cloudinary CDN Store]
+    FE -->|idb| LocalCache[(IndexedDB Local Cache)]
 ```
+
+> [!NOTE]
+> All document edits are loaded instantly from **IndexedDB** on the frontend for zero-friction (0ms) layout hydration before websocket connections sync the newest server updates.
 
 ---
 
 ## 🚀 Key Feature Pillars
 
-### 📝 1. Advanced Collaborative Editor (Lexical)
-*   **Meta's Lexical Engine**: A state-of-the-art rich-text framework replacing legacy Tiptap for better performance and extensibility.
-*   **Real-time CRDT-like Sync**: Multi-user collaboration with zero-conflict synchronization powered by custom Socket.io plugins.
-*   **Media Intelligence**: Custom Image nodes with drag-and-drop support and automatic serialization.
-*   **Export Engine**: Production-grade PDF and DOCX exports with high-fidelity CSS preservation.
+### 📝 1. Advanced Collaborative Editor
+* **Meta's Lexical Engine**: Powered by Lexical `0.44`, providing high-performance rich-text processing, clean DOM parsing, and modular extensibility.
+* **Real-time Sync**: Operational synchronization powered by custom Socket.io rooms, ensuring zero-conflict document updates between multiple editors.
+* **Media Optimization**: Integrated drag-and-drop image node processing. Images are compressed to WebP via **Sharp** and uploaded directly to **Cloudinary** for CDN delivery.
+* **Document Export**: High-fidelity PDF and Word Document (`DOCX`) export utilities with complete stylesheet preservation.
 
 ### 🤖 2. Vertex AI Copilot
-*   **Intelligence Layer**: Integrated with **Groq Llama 3.3 (70B)** for near-instant text processing.
-*   **Semantic Tools**: Instant summarization, professional tone rewriting, and creative brainstorming directly within the editor.
-*   **Contextual Awareness**: AI can analyze document state to provide relevant suggestions.
+* **Groq Llama 3.3 (70B) Integration**: Contextual AI completion with sub-second token latency via the Groq SDK, falling back to Llama 3 (8B) if limits are reached.
+* **Semantic Editing Suite**: High-quality document tools for summarizing, tone rewriting (e.g. converting rough notes to professional copy), and structured brainstorming directly inside the text selection.
+* **Workspace Chat Context**: Users can query the copilot with direct reference to the active document's contents.
 
 ### 📡 3. Networking & Social Hub
-*   **Presence 2.0**: Global real-time status tracking (Online/Away/Offline) backed by Redis.
-*   **Dynamic Social Feed**: High-performance feed with infinite scroll and optimistic UI updates for likes and comments.
-*   **Instant Messaging**: WhatsApp-style messaging with delivery status and typing indicators.
+* **Multi-Tab Presence 2.0**: Accurate online status tracking (Online / Offline / Idle) backed by Redis sets, capable of scaling across multiple backend nodes.
+* **Real-Time Instant Messaging**: Private user chat using Socket.io with delivery status, live typing indicators, and emoji reactions.
+* **Dynamic Social Feed**: Infinite-scroll feed using optimistic UI updates for instant like, comment, and sharing interaction.
+
+### 🛡️ 4. Administration Dashboard
+* **Full-Stack Moderation**: Admin route (`/admin`) for inspecting user status, managing active documents, and deleting malicious posts.
+* **System Operations**: Maintenance mode controls that pause backend operations, global analytics dashboards, and application setting configurations.
 
 ---
 
-## 🔐 Authentication & Security Flow
+## 📡 WebSocket Event Protocol
 
-VertexFlow employs a multi-layered security strategy to protect user data and maintain system integrity.
+Real-time interactions are segmented into dedicated handlers to protect system execution resources.
 
-### **The Authentication Pipeline:**
-1.  **Registration**: User signs up; system generates a secure 6-digit OTP.
-2.  **Verification**: **Nodemailer** dispatches the OTP. User verifies identity before account activation.
-3.  **Authentication**: Post-login, a **JWT (JSON Web Token)** is generated using `HS256`.
-4.  **Session Persistence**: The token is stored in an **HttpOnly, Secure Cookie** to mitigate XSS attacks.
-5.  **RBAC Enforcement**: 
-    *   **User Role**: Standard access to documents and networking.
-    *   **Admin Role**: Access to `/admin` dashboard, system analytics, and maintenance controls.
+### 1. Document Collaboration (`doc.socket.js`)
 
----
+| Event Name | Direction | Payload Structure | Description |
+| :--- | :--- | :--- | :--- |
+| `get-document` | Client ➔ Server | `docId: String`, `userMetadata: Object` | Requests entry to a document room, initializes members, and loads document states. |
+| `load-document` | Server ➔ Client | `{ content: Object/String, updatedAt: Date }` | Fires upon joining; populates the Lexical editor. |
+| `send-changes` | Client ➔ Server | `delta: Object` | Transmits rich-text changes. Protected by rate limiting and a 2MB maximum limit. |
+| `receive-changes`| Server ➔ Client | `delta: Object` | Broadcasts text deltas to all other active editors in the room. |
+| `presence-update`| Client ➔ Server | `{ status, isTyping, cursor, activeBlock }` | Updates editor awareness metadata (e.g. cursor coordinates, active line block). |
+| `presence-updated`| Server ➔ Client| `{ socketId, userId, status, isTyping, cursor, activeBlock }` | Broadcasts awareness adjustments to the rest of the editors. |
+| `save-document` | Client ➔ Server | `content: Object/String` | Persists changes to MongoDB. Emits `save-confirmed` upon completion. |
+| `update-title` | Client ➔ Server | `newTitle: String` | Renames document. Cleans zero-width characters and limits updates to 1 per second. |
+| `access-denied` | Server ➔ Client | *None* | Emitted if a user lacks collaborative access to a requested document. |
 
-## 🛠️ Technical Stack (Production Edition)
+### 2. Networking & Chat (`network.socket.js`)
 
-### **Frontend**
-*   **Framework**: React 19.2 (Stable)
-*   **Build Tool**: Vite 8.0 (Fast HMR)
-*   **Editor Engine**: Lexical 0.44
-*   **Real-time**: Socket.io-client 4.8
-*   **State & Caching**: IndexedDB (via `idb`), React Context
-*   **Styling**: Pure CSS3 with Hardware-Accelerated Glassmorphism
+| Event Name | Direction | Payload Structure | Description |
+| :--- | :--- | :--- | :--- |
+| `private-message` | Client ➔ Server | `{ recipientId: String, content: String }` | Dispatches message to a target user. Saves to database and sends to all user tabs. |
+| `receive-message` | Server ➔ Client | `message: Object` | Broadcasts new message back to sender and recipient devices. |
+| `message-reaction`| Client ➔ Server | `{ messageId, recipientId, emoji }` | Applies an emoji reaction to a chat message. |
+| `send-friend-request`| Client ➔ Server| `{ recipientId, requesterName }` | Triggers a real-time friend invite banner. |
 
-### **Backend**
-*   **Runtime**: Node.js 20.x
-*   **Framework**: Express 5.2 (Latest)
-*   **Database**: MongoDB 9.5 (Mongoose)
-*   **Scaling**: Redis Stack (ioredis + Redis Adapter)
-*   **AI**: Groq SDK (Llama 3.3 70B)
-*   **Processing**: Sharp (Images), Multer (Uploads)
-
----
-
-## ⚡ Performance Engineering
-
-*   **LCP Preloading**: Social feed images are programmatically preloaded to ensure an LCP under 1.2s.
-*   **Instant-On Rendering**: Documents are hydrated from **IndexedDB** before the socket connection is even established.
-*   **Lazy Loading**: Heavy modules (PrismJS, html2pdf) are code-split and loaded on demand.
-*   **Graceful Shutdown**: Server handles `SIGTERM` to close database and Redis connections cleanly, preventing data corruption.
+> [!IMPORTANT]
+> **Cluster & Multi-Tab Rules:**
+> * **Tab Limit Enforcement:** Standard users are limited to a maximum of **3 active tabs**. Exceeding this evicts the oldest active socket with a `tab-limit-exceeded` event.
+> * **Orphan Cleanup:** An active background worker runs on Redis scan loops every 60 seconds to prune orphan sockets and update online user metrics.
+> * **Sliding Expiration:** Sockets emit a `heartbeat` event every 20 seconds, updating the active user session TTL in Redis to 90 seconds.
 
 ---
 
-## 🛠️ Installation & Setup
+## 🛠️ Technical Stack
 
-### **Prerequisites**
-*   Node.js v18+
-*   MongoDB Instance
-*   Redis Server (Optional for Dev, Required for Production)
-*   Groq API Key
+### Frontend Core
+* **Library / Build:** React 19.2 (Stable) + Vite 8.0 (Fast HMR)
+* **Editor Core:** Lexical Editor (0.44) + PrismJS (syntax highlighting)
+* **WebSockets:** Socket.io-client 4.8
+* **Caching:** IndexedDB (via the `idb` library)
+* **Styles:** Vanilla CSS3 + custom Glassmorphism variables (No TailwindCSS)
 
-### **Quick Start**
-```bash
-# 1. Clone
-git clone https://github.com/Sadyal/VertexFlow.git
-cd VertexFlow
+### Backend Services
+* **Runtime:** Node.js 20.x + Express 5.2 (Router-level payload sanitization)
+* **Database:** MongoDB 9.5 (Mongoose ODM)
+* **Session Cache:** Redis Stack (ioredis client + `@socket.io/redis-adapter`)
+* **AI Engine:** Groq SDK (Llama 3.3 70B Versatile model)
+* **Media Handling:** Sharp (Image decompression/conversion) + Multer (Multipart parser)
+* **Mail:** Nodemailer (SMTP relay wrapper)
 
-# 2. Server Setup
-cd server && npm install
-cp .env.example .env # Add your keys here
+---
 
-# 3. Frontend Setup
-cd ../frontend && npm install
-npm run dev
+## 📂 Project Structure
+
+```
+VertexFlow/
+├── frontend/
+│   ├── public/              # Static assets
+│   ├── src/
+│   │   ├── app/             # Main App component & routing definitions
+│   │   ├── assets/          # Base styling images/SVG icons
+│   │   ├── components/      # Shared components (common UI, layouts, protection wrappers)
+│   │   ├── context/         # Application level state providers (Auth, Socket)
+│   │   ├── hooks/           # Custom React hooks
+│   │   ├── modules/         # Modular feature folders (Admin, Auth, Document, Network, Social, User)
+│   │   ├── pages/           # Base landing files (Home)
+│   │   └── utils/           # Helper libraries
+│   ├── package.json
+│   └── vite.config.js
+│
+├── server/
+│   ├── config/              # DB, Redis, and SMTP initializers
+│   ├── middleware/          # Security headers, rate limiters, error, and maintenance controls
+│   ├── models/              # Mongoose DB schema designs (User, Doc, Post, Comment, Message)
+│   ├── modules/             # Server API controllers, routes, and services
+│   ├── sockets/             # Real-time WebSocket event registries and cluster state managers
+│   ├── uploads/             # Temp directory for processing user image uploads
+│   ├── utils/               # Activity loggers, password hashes, and Cloudinary streams
+│   ├── package.json
+│   └── server.js            # Main cluster bootstrapper
 ```
 
 ---
 
-## 🛡️ License & Acknowledgments
-Distributed under the **MIT License**.  
-Developed with passion by **[Sadyal](https://github.com/Sadyal)**. 🚀
+## 🔐 Security & Data Protection Pipeline
+
+VertexFlow uses strict protection systems at the entry layer:
+
+1. **Double OTP Authentication**: Accounts require verification via a 6-digit one-time password generated at signup and dispatched via Nodemailer.
+2. **HttpOnly Cookies**: Session tokens are encrypted (`HS256` JWT) and written to secure HTTP-only cookies, neutralizing XSS exploits.
+3. **Array/Nesting Sanitizer**: Body parser interceptor rejects deeply nested objects or large array payloads, preventing server memory starvation.
+4. **Strict Request Limits**: Heavy endpoints (e.g. Login, Doc-saving) are bound to Express-Rate-Limit constraints. A 10-second request timeout guard is applied to all incoming API requests.
+
+---
+
+## ⚙️ Environment Configuration
+
+Set up `.env` files in their respective folders before running the system.
+
+### Server Env (`server/.env`)
+Create `server/.env` based on `server/.env.example`:
+```ini
+PORT=4000
+NODE_ENV=development
+
+# Database Connection
+MONGO_URI=mongodb+srv://...
+
+# Authentication Secrets
+JWT_SECRET=your_jwt_signature_secret
+CRON_SECRET=your_cron_pinger_secret
+
+# Email Config
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=your_smtp_sender_user
+SMTP_PASS=your_smtp_password
+SENDER_EMAIL=no-reply@vertexflow.com
+
+# Redis Configuration
+REDIS_URL=rediss://default:...
+
+# AI & Media Services
+GROQ_API_KEY=gsk_...
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+```
+
+### Frontend Env (`frontend/.env`)
+Create `frontend/.env`:
+```ini
+VITE_API_URL=http://localhost:4000
+```
+
+---
+
+## 🚀 Installation & Running Locally
+
+### 1. Clone & Core Setup
+```bash
+git clone https://github.com/Sadyal/VertexFlow.git
+cd VertexFlow
+```
+
+### 2. Backend Initialization
+```bash
+cd server
+npm install
+# Add configurations in .env
+npm run dev
+```
+
+### 3. Frontend Initialization
+```bash
+cd ../frontend
+npm install
+# Add configurations in .env
+npm run dev
+```
+
+### 🛠️ Developer Utility Scripts (Server folder)
+* **Seed Database:** Populates MongoDB with default test accounts (`owner@test.com`, `collab@test.com`) and a shared document (`test-doc-id-12345`) for offline validation:
+  ```bash
+  node seed_test_data.js
+  ```
+* **Elevate Admin Role:** Converts the first user in the DB into an administrator to grant access to the system dashboard:
+  ```bash
+  node makeAdmin.js
+  ```
+* **WebSocket Integration Verification:** Connects multiple mock sockets to validate cluster presence syncing and document edits locally:
+  ```bash
+  node test_socket.js
+  ```
+
+---
+
+## 🛡️ License & Acknowledgements
+This project is licensed under the **MIT License**. Created with passion for high-performance collaborative engineering. Developed by **[Sadyal](https://github.com/Sadyal)**. 🚀
